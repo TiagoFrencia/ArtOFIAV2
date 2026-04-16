@@ -1,0 +1,133 @@
+"""
+Reconnaissance Strategy Template
+================================
+Cognitive framework for passive information gathering.
+"""
+
+name: "Reconnaissance Strategy"
+version: "1.0.0"
+domain: "reconnaissance"
+
+reconnaissance_phases:
+  
+  phase_1_passive_enumeration:
+    objective: "Gather information without direct interaction"
+    techniques:
+      - technique: "WHOIS Lookup"
+        tools: ["whois", "domaintools"]
+        extraction: ["registrant_info", "nameservers", "registrar"]
+      
+      - technique: "DNS Enumeration"
+        tools: ["dig", "nslookup", "dnsdumpster"]
+        queries:
+          - "A records (IPv4)"
+          - "AAAA records (IPv6)"
+          - "MX records (mail servers)"
+          - "TXT records (SPF, DKIM, DMARC)"
+          - "CNAME records (aliases)"
+          - "NS records (nameservers)"
+          - "SOA records (zone info)"
+      
+      - technique: "Certificate Transparency"
+        tools: ["crt.sh", "certspotter"]
+        info_extracted:
+          - "Subdomains"
+          - "Alternative names"
+          - "Issuance history"
+      
+      - technique: "Search Engine OSINT"
+        tools: ["Google dorking", "Shodan", "Censys", "Zoomeye"]
+        dorks:
+          - "site:target.com filetype:pdf"
+          - "site:github.com password reset token"
+          - "inurl:admin"
+  
+  phase_2_active_endpoint_discovery:
+    objective: "Identify live endpoints without authentication"
+    techniques:
+      - technique: "HTTP Response Analysis"
+        checks:
+          - "HTTP status codes reveal path structure"
+          - "Server headers (version info)"
+          - "X-Powered-By headers"
+          - "Weak CORS headers"
+      
+      - technique: "JavaScript Analysis"
+        extraction:
+          - "API endpoints in JS files"
+          - "Hidden URLs"
+          - "API keys accidentally exposed"
+          - "Framework detection"
+      
+      - technique: "Sitemap Discovery"
+        targets:
+          - "/robots.txt"
+          - "/sitemap.xml"
+          - "/.well-known/manifest.json"
+  
+  phase_3_framework_detection:
+    objective: "Identify technology stack"
+    techniques:
+      - technique: "Fingerprinting"
+        indicators:
+          - "Response headers"
+          - "Cookie patterns (PHPSESSID, ASPSESSIONID)"
+          - "HTTP response signatures"
+          - "Known URL patterns"
+      
+      - technique: "Error Message Leakage"
+        indicators:
+          - "404 pages reveal framework"
+          - "Stack traces expose paths"
+          - "Debug mode enabled"
+
+output_structure:
+  
+  findings_collection:
+    domains: ["target.com", "api.target.com", "admin.target.com"]
+    ips: ["1.2.3.4", "5.6.7.8"]
+    web_server: "nginx 1.21.6"
+    programming_language: "Python/Django"
+    cdn: "Cloudflare"
+    
+  endpoints_discovered:
+    - path: "/api/users"
+      method: "GET"
+      auth_required: true
+      rate_limit: "100 requests/minute"
+    
+    - path: "/api/auth/login"
+      method: "POST"
+      auth_required: false
+      parameters: ["email", "password"]
+  
+  vulnerabilities_identified:
+    - type: "Open API endpoint"
+      endpoint: "/api/debug"
+      severity: "High"
+    
+    - type: "Information disclosure"
+      detail: "Server version in headers"
+      severity: "Low"
+  
+  attack_surface_mapping:
+    authentication_methods:
+      - "JWT tokens"
+      - "Session cookies"
+      - "API keys"
+    
+    input_vectors:
+      - "URL parameters"
+      - "POST body (JSON)"
+      - "Headers (Custom headers)"
+      - "File uploads"
+    
+    client_frameworks:
+      - "React 18.2"
+      - "Angular 14"
+    
+    backend_framework: "Django 4.1"
+
+next_phase:
+  logical_analysis: "Feed findings to LogicAgent"
+  exploitation: "Based on logic analysis, plan exploitation"

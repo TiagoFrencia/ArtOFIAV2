@@ -1,0 +1,173 @@
+"""
+Security Guardrails - Agent Behavioral Constraints
+=================================================
+Define los límites éticos, operacionales y técnicos para el agente.
+
+Este archivo es CRÍTICO para la seguridad. Cambios requieren validación humana.
+"""
+
+# ETHICAL BOUNDARIES
+ethical_boundaries:
+  prohibited_actions:
+    - name: "PII Exfiltration"
+      description: "No exfiltrar datos personales (emails, SSNs, credit cards)"
+      severity: "CRITICAL"
+      reason: "Violates privacy regulations (GDPR, CCPA)"
+    
+    - name: "Ransomware"
+      description: "No crear malware de cifrado de datos"
+      severity: "CRITICAL"
+      reason: "Criminal activity, causes financial damage"
+    
+    - name: "Unauthorized Access"
+      description: "No acceder a sistemas sin autorización explícita"
+      severity: "CRITICAL"
+      reason: "Legal violation, violates CFAA"
+  
+  allowed_scopes:
+    - "Target specified in authorization"
+    - "Scope defined in rules of engagement"
+    - "Time-limited engagement (start_date, end_date)"
+
+# OPERATIONAL BOUNDARIES
+operational_boundaries:
+  ip_ranges_forbidden:
+    - name: "Private Networks"
+      ranges:
+        - "10.0.0.0/8"
+        - "172.16.0.0/12"
+        - "192.168.0.0/16"
+      reason: "Internal infrastructure protection"
+    
+    - name: "Loopback"
+      ranges:
+        - "127.0.0.0/8"
+        - "::1/128"
+      reason: "Host-only, prevents self-attack"
+    
+    - name: "AWS Metadata"
+      ranges:
+        - "169.254.169.254/32"
+      reason: "Prevents credential exfiltration"
+    
+    - name: "Reserved"
+      ranges:
+        - "0.0.0.0/8"
+        - "255.255.255.255/32"
+      reason: "Reserved by IANA"
+  
+  domains_forbidden:
+    - "*.internal"
+    - "*.local"
+    - "localhost"
+    - "127.0.0.1"
+
+# COMMAND RESTRICTIONS
+command_restrictions:
+  destructive_commands_banned:
+    - pattern: "rm -rf /"
+      reason: "System destruction"
+    
+    - pattern: "DROP TABLE"
+      reason: "Data destruction"
+    
+    - pattern: "DELETE FROM"
+      reason: "Potential data loss"
+    
+    - pattern: "mkfs"
+      reason: "Filesystem destruction"
+    
+    - pattern: "dd if=/dev/zero"
+      reason: "Data wiping/destruction"
+  
+  suspicious_operations:
+    - action: "Attempt to execute as root without authorization"
+      response: "BLOCK"
+    
+    - action: "Access /etc/shadow"
+      response: "WARN (if authorized)"
+    
+    - action: "Clear logs"
+      response: "BLOCK"
+  
+  # Tiempo máximo que puede ejecutar un comando
+  execution_timeouts:
+    interactive_command: 60  # segundos
+    batch_command: 300  # segundos
+    long_running: 3600  # 1 hora máximo
+
+# CONTEXT LIMITS
+context_limits:
+  max_request_size: 4096  # tokens
+  max_response_size: 2048  # tokens
+  max_batch_size: 10  # concurrent operations
+  max_api_calls_per_minute: 60
+  max_memory_objects: 1000
+
+# EVASION DECEPTION PREVENTION
+evasion_safety:
+  techniques_monitored:
+    - "jitter_injection"  # Timing randomization
+    - "fingerprint_spoofing"  # User-agent changes
+    - "proxy_rotation"  # IP rotation
+    - "tls_spoofing"  # Certificate manipulation
+  
+  detection_rules:
+    - rule: "Evasion technique changes signatures unexpectedly"
+      action: "LOG_AND_CONTINUE"  # For defensive research
+    
+    - rule: "Attempt to disable monitoring/logging"
+      action: "BLOCK"
+
+# KNOWLEDGE VALIDATION
+knowledge_validation:
+  episodic_memory_checks:
+    - "Episode success must match technical feasibility"
+    - "High-confidence claims must have supporting evidence"
+    - "Contradictions between episodes trigger re-evaluation"
+  
+  graph_integrity:
+    - "Breaking changes to attack chains must be validated"
+    - "New VULNERABILITY nodes require source endpoint"
+    - "Deleted nodes can't be re-referenced"
+
+# POST-EXPLOITATION LIMITS
+post_exploitation:
+  max_persistence_time: 86400  # 24 hours sandbox time
+  max_data_exfiltration: 1000000000  # 1GB sandbox storage
+  lateral_movement_scope:
+    - "Within sandbox only"
+    - "Cannot reach host network"
+    - "Cannot access other containers"
+
+# REPORTING SAFETY
+reporting:
+  sensitive_data_redaction:
+    - "API keys"
+    - "Database passwords"
+    - "Personal information (emails, IPs of humans)"
+  
+  disclosure_timing:
+    - "Never release exploit code publicly"
+    - "Responsible disclosure: 90 days before public"
+    - "Notify stakeholders before report publication"
+
+# ENFORCEMENT
+enforcement:
+  violate_guardrail_action: "STOP_AND_ALERT"
+  escalation_required_for:
+    - "Any CRITICAL severity violation"
+    - "Attempts to bypass guardrails"
+    - "Repeated warnings"
+  
+  human_override:
+    - "Required for non-sandboxed execution"
+    - "Required for sensitive targets"
+    - "Required for operations >$10k business impact"
+
+# AUDIT
+audit:
+  log_level: "DETAILED"
+  retention_days: 90
+  reviewed_quarterly: true
+  changes_require_approval: true

@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # 1. Base de Datos Vectorial (Memoria semántica a corto/largo plazo)
+  postgres-vector:
+    image: ankane/pgvector:latest
+    container_name: artofia_pgvector
+    environment:
+      POSTGRES_DB: artofia_memory
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-securepassword}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # 2. Grafo de Conocimiento (Memoria de relaciones y tácticas)
+  neo4j:
+    image: neo4j:5.23.0
+    container_name: artofia_graph
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-securepassword}
+    ports:
+      - "7474:7474" # Interfaz HTTP
+      - "7687:7687" # Protocolo Bolt para Graphiti
+    volumes:
+      - neo4j_data:/data
+    restart: unless-stopped
+
+  # 3. Caché y Limitación de Tasa (Rate Limiting)
+  redis:
+    image: redis:alpine
+    container_name: artofia_redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  # 4. Motor de Evasión WAF (Navegador Aislado)
+  browserless:
+    image: ghcr.io/browserless/chromium:latest
+    container_name: artofia_browser
+    environment:
+      - TIMEOUT=300000
+      - CONCURRENT=10
+      - TOKEN=${BROWSERLESS_TOKEN:-artofia-secure-token}
+      - KEEP_ALIVE=true
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  # 5. Sandbox de Explotación (Ejecución efímera y segura de código)
+  exploit-sandbox:
+    image: docker:dind
+    container_name: artofia_dind
+    privileged: true
+    environment:
+      - DOCKER_TLS_CERTDIR=/certs
+    ports:
+      - "2376:2376"
+    volumes:
+      - dind-certs-ca:/certs/ca
+      - dind-certs-client:/certs/client
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  neo4j_data:
+  dind-certs-ca:
+  dind-certs-client:

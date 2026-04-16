@@ -1,0 +1,31 @@
+# Dockerfile.ephemeral
+# ====================
+# Imagen ultraligera y temporal para ejecutar exploits.
+# Solo contiene dependencias estrictamente necesarias.
+# Sin herramientas de administración, sin credenciales, sin persistencia.
+
+FROM python:3.11-slim
+
+# Security: Create non-root sandboxuser
+RUN useradd -m -u 1000 sandboxuser
+
+# Dependencies MINIMAS para exploits
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    wget \
+    netcat-openbsd \
+    bash \
+    && rm -rf /var/lib/apt/lists/*
+
+# Workdir
+WORKDIR /exploit
+
+# Security: change to non-root
+USER sandboxuser:sandboxuser
+
+# Healthcheck
+HEALTHCHECK --interval=5s --timeout=3s --start-period=1s --retries=1 \
+    CMD curl -f http://localhost/ || exit 1
+
+# Default: sleep (keep alive for exec)
+CMD ["/bin/sleep", "infinity"]

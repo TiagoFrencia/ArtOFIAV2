@@ -1,0 +1,159 @@
+"""
+Authorization Escalation Template
+================================
+Cognitive framework for privilege escalation planning.
+"""
+
+name: "Authorization Escalation"
+version: "1.0.0"
+domain: "authorization"
+
+escalation_patterns:
+  
+  vertical_escalation:
+    name: "Escalation hacia arriba (user → admin)"
+    techniques:
+      
+      - technique: "Direct Role Assignment"
+        description: "Asignar directamente 'admin' claim/role"
+        implementation:
+          - "Modify JWT claim 'role': 'admin'"
+          - "Modify session cookie 'user_role=admin'"
+          - "Modify database record role column"
+        difficulty: "Low"
+        common_in: "Poorly implemented auth"
+      
+      - technique: "Weak Permission Checks"
+        description: "Faltan validaciones de autorización"
+        implementation:
+          - "Access /admin endpoint as regular user"
+          - "Call admin API as non-admin"
+          - "Read admin-only database records"
+        detection:
+          - "Try accessing with altered user ID"
+          - "Attempt admin operations in logs/monitoring"
+        difficulty: "Medium"
+      
+      - technique: "Race Condition"
+        description: "Window temporal entre validación y uso"
+        implementation:
+          - "Check if user_role == 'user'"
+          - "If true, grant temporary access"
+          - "Before removing access, execute admin action"
+        difficulty: "High"
+      
+      - technique: "Logic Flaws"
+        description: "Errores en la lógica de autorización"
+        examples:
+          - "If user has 'user' role AND 'admin' claim"
+          - "Permission check inverted (if NOT admin)"
+          - "Array instead of single value handling"
+        difficulty: "Medium"
+  
+  horizontal_escalation:
+    name: "Escalation en el mismo nivel (user1 → user2)"
+    techniques:
+      
+      - technique: "IDOR (Insecure Direct Object Reference)"
+        description: "Acceder a recursos de otros usuarios por ID"
+        implementation:
+          - "Get profile of user 1: /api/users/1/profile"
+          - "Try user 2: /api/users/2/profile"
+          - "If no auth check, información expuesta"
+        indicators:
+          - "Sequential IDs"
+          - "Direct object references"
+          - "Missing ownership validation"
+        difficulty: "Low"
+      
+      - technique: "Broken Access Control"
+        description: "Mismo usuario, diferentes contextos"
+        implementation:
+          - "Access own resources: /api/users/self/data"
+          - "Change 'self' to other user ID"
+          - "Access their data, orders, payments"
+        difficulty: "Low"
+      
+      - technique: "Privilege Level Mismatch"
+        description: "Diferentes niveles de acceso en diferentes endpoints"
+        implementation:
+          - "/api/v1/users - requires auth"
+          - "/api/v2/users - no auth required"
+          - "Access through v2 endpoint"
+        difficulty: "Medium"
+  
+  alternative_path_exploitation:
+    name: "Acceso a través de rutas alternativas"
+    techniques:
+      
+      - technique: "API Versioning Bypass"
+        description: "Versiones antiguas sin validación"
+        implementation:
+          - "Modern API: /api/v3/admin (requires auth)"
+          - "Old API: /api/v1/admin (forgotten, no auth)"
+        difficulty: "Medium"
+      
+      - technique: "GraphQL Introspection"
+        description: "Exposición de schema privado"
+        implementation:
+          - "GraphQL introspection query revela admin mutations"
+          - "Ejecutar admin mutations directamente"
+        difficulty: "Low"
+
+exploitation_methodology:
+  
+  step_1_reconnaissance:
+    goals:
+      - "Identifiar roles actuales del usuario"
+      - "Listar todas las operaciones disponibles"
+      - "Identificar operaciones admin"
+      - "Mapear validaciones de autorización"
+  
+  step_2_vulnerability_testing:
+    tests:
+      - "Try direct role modification"
+      - "Attempt IDOR with different IDs"
+      - "Probe alternative API versions"
+      - "Test race conditions"
+  
+  step_3_exploitation:
+    phase_1: "Gain elevated access"
+    phase_2: "Execute admin operations"
+    phase_3: "Preserve access (persistence)"
+  
+  step_4_validation:
+    checks:
+      - "Can execute previously denied operations?"
+      - "Access logs updated correctly?"
+      - "Audit trail suspicious?"
+
+remediation:
+  
+  architectural_fixes:
+    - "Centralized authorization service"
+    - "Attribute-based access control (ABAC)"
+    - "Role-based access control (RBAC) with baseline"
+    - "Principle of least privilege"
+  
+  implementation_fixes:
+    - "ALWAYS check authorization on backend"
+    - "Never trust client-side permission claims"
+    - "Use framework-provided auth mechanisms"
+    - "Implement proper audit logging"
+    - "Regular authorization logic reviews"
+    - "Automated authorization testing"
+  
+  verification:
+    - "Verify unprivileged user cannot access admin"
+    - "Verify authorization checked on EVERY operation"
+    - "Verify role changes are logged"
+    - "Penetration testing focused on auth"
+
+assessment_checklist:
+  - "Is authorization checked on backend?"
+  - "Are there sequential/predictable IDs?"
+  - "Are there forgotten API versions?"
+  - "Are there race conditions?"
+  - "Are there logic flaws in permission checks?"
+  - "Are user roles modifiable on client?"
+  - "Are session tokens properly validated?"

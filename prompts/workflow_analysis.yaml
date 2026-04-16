@@ -1,0 +1,168 @@
+"""
+Workflow Analysis Reasoning Template
+====================================
+Cognitive framework for analyzing business logic flows.
+"""
+
+name: "Workflow Analysis"
+version: "1.0.0"
+domain: "business_logic"
+
+workflow_types:
+  
+  payment_flow:
+    steps:
+      - "1. Add item to cart"
+      - "2. Proceed to checkout"
+      - "3. Enter payment details"
+      - "4. Validate payment"
+      - "5. Confirm order"
+      - "6. Send confirmation"
+    vulnerability_points:
+      - "Skipping validation (go direct to confirm)"
+      - "Modifying price parameter"
+      - "Race condition between validation and charge"
+      - "Not actually charging but granting access"
+  
+  authentication_flow:
+    steps:
+      - "1. Submit credentials"
+      - "2. Validate username/password"
+      - "3. Check MFA"
+      - "4. Issue session token"
+      - "5. Set secure cookie"
+    vulnerability_points:
+      - "Accessing protected resource before MFA"
+      - "Reusing old session tokens"
+      - "MFA recovery codes reusable"
+  
+  authorization_flow:
+    steps:
+      - "1. User requests resource"
+      - "2. Check user permissions"
+      - "3. Check resource ownership"
+      - "4. Grant or deny access"
+    vulnerability_points:
+      - "Missing authorization check"
+      - "Incorrect permission logic"
+      - "IDOR (direct access by ID)"
+
+detection_patterns:
+  
+  pattern_1_step_skipping:
+    name: "Omittable Steps"
+    detection:
+      - "Look for endpoints that access final resource"
+      - "Check if intermediate validation can be bypassed"
+      - "Try direct access to endpoint that should require prior step"
+    example: "POST /order/confirm without POST /payment/process"
+    exploit: "Skip payment validation, go directly to confirm"
+  
+  pattern_2_parameter_tampering:
+    name: "Modifiable Business Logic Parameters"
+    detection:
+      - "Find parameters that affect business logic (price, quantity)"
+      - "Test if validation happens server-side"
+      - "Attempt to modify after user submits"
+    example: "Modify 'amount: 100' to 'amount: 0' in checkout"
+    exploit: "Pay $0 for expensive item"
+  
+  pattern_3_state_manipulation:
+    name: "Inconsistent State Management"
+    detection:
+      - "Look for state variables (status, step, auth)"
+      - "Test if state can be modified directly"
+      - "Check for state reversion possibilities"
+    example: "Set 'order_status' from 'pending' to 'completed'"
+  
+  pattern_4_race_conditions:
+    name: "Timing-Based Flaws"
+    detection:
+      - "Identify operations that touch shared resources"
+      - "Correlate time between operations"
+      - "Test concurrent requests to same resource"
+    example: "Two withdrawals from same account simultaneously (overdraft)"
+    exploit: "Withdraw more than balance due to concurrency"
+
+exploitation_methodology:
+  
+  step_1_workflow_enumeration:
+    tasks:
+      - "Map all endpoints in flow"
+      - "Identify mandatory vs. optional endpoints"
+      - "Document request/response for each step"
+    tools:
+      - "Proxy (Burp/ZAP)"
+      - "API documentation"
+      - "Application usage"
+  
+  step_2_bypass_testing:
+    tasks:
+      - "Skip intermediate steps"
+      - "Access final endpoint directly"
+      - "Test with invalid intermediate data"
+    test_cases:
+      - "POST /cart/checkout without adding items"
+      - "POST /payment/confirm without payment_id"
+      - "GET /order/receipt with wrong order_id"
+  
+  step_3_parameter_manipulation:
+    tasks:
+      - "Identify business-critical parameters"
+      - "Modify values at each step"
+      - "Track if modifications persist"
+    examples:
+      - "Modify price in POST request"
+      - "Change quantity to negative"
+      - "Modify recipient email"
+  
+  step_4_concurrency_testing:
+    tasks:
+      - "Execute same operation multiple times concurrently"
+      - "Track race condition windows"
+      - "Identify atomic vs. non-atomic operations"
+
+remediation:
+  
+  for_payment_flows:
+    - "Validate payment BEFORE granting access"
+    - "Use cryptographic verification of price"
+    - "Implement transaction locking"
+    - "Don't trust client-side calculations"
+  
+  for_auth_flows:
+    - "REQUIRE MFA validation before granting access"
+    - "Implement proper session handling"
+    - "Don't allow recovery code reuse"
+  
+  for_authorization:
+    - "Check ownership on EVERY resource access"
+    - "Use centralized authorization service"
+    - "Log all authorization decisions"
+    - "Regular authorization logic audit"
+
+attack_chain_examples:
+  
+  chain_1_no_payment:
+    name: "Purchase without paying"
+    steps:
+      - "1. Add item to cart"
+      - "2. Modify price to 0"
+      - "3. Skip payment step, go direct to checkout confirmation"
+      - "4. Access order as if purchased"
+  
+  chain_2_permission_escalation:
+    name: "Access admin resources as user"
+    steps:
+      - "1. Identify admin resource /admin/users"
+      - "2. Try accessing as regular user"
+      - "3. If object reference /admin/users/123, try /admin/users/1"
+      - "4. Escalate to admin panel access"
+  
+  chain_3_account_takeover:
+    name: "Hijack another user's account"
+    steps:
+      - "1. Try race condition: request password reset twice"
+      - "2. Use first token on second request"
+      - "3. Reset someone else's password"
+      - "4. Gain account access"

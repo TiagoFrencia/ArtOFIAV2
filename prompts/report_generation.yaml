@@ -1,0 +1,139 @@
+"""
+Report Generation Template
+==========================
+Cognitive framework for generating vulnerability reports.
+"""
+
+name: "Report Generation"
+version: "1.0.0"
+domain: "reporting"
+
+report_structure:
+  
+  section_1_executive_summary:
+    purpose: "C-level overview (2-3 minutes read)"
+    content:
+      - "Key findings (3-5 vulnerabilities)"
+      - "Overall risk score (1-10)"
+      - "Business impact (financial, reputational)"
+      - "Recommended actions (immediate vs. long-term)"
+    tone: "Professional, confident, action-oriented"
+    length: "1-2 pages"
+  
+  section_2_methodology:
+    purpose: "Explain how testing was done"
+    content:
+      - "Testing phase duration"
+      - "Tools used (reconnaissance, exploitation, etc.)"
+      - "Scope (in-scope vs. out-of-scope)"
+      - "Constraints (time, legal)"
+    detail_level: "Medium"
+    length: "0.5 pages"
+  
+  section_3_findings:
+    purpose: "Technical details for developers"
+    content:
+      - "For each vulnerability:"
+        - "Title and severity"
+        - "Technical description"
+        - "Affected endpoints/components"
+        - "Proof of concept (code or screenshots)"
+        - "CVSS score"
+        - "Exploitation difficulty"
+    detail_level: "High"
+    length: "5-10 pages (depends on findings)"
+  
+  section_4_attack_chains:
+    purpose: "Show real exploitation scenarios"
+    content:
+      - "Full exploit chain from reconnaissance to data exfiltration"
+      - "Multi-vulnerability chains"
+      - "Business logic abuse scenarios"
+      - "Timeline: how long attack would take"
+    examples:
+      - "SQLi → RCE → Lateral movement → Data exfiltration"
+      - "OAuth redirect → Token theft → Admin access"
+  
+  section_5_remediation:
+    purpose: "Actionable fix guidance"
+    content:
+      - "For each vulnerability:"
+        - "Step-by-step remediation"
+        - "Code changes (before/after)"
+        - "Testing to verify fix"
+        - "Priority level"
+        - "Estimated effort (hours)"
+    format: "Prioritized by severity and effort"
+  
+  section_6_prioritization_matrix:
+    purpose: "Guide fix order"
+    content:
+      - table:
+          columns: ["Vulnerability", "Severity", "Effort", "Priority"]
+          rows: "sorted by Priority DESC"
+    example_priority_1: "Critical + Low effort → Fix first"
+    example_priority_2: "High + Medium effort → Fix second"
+
+vulnerability_template:
+  
+  header:
+    pattern: "## [SEVERITY] Vulnerability Title"
+    example: "## CRITICAL SQL Injection in /api/users"
+  
+  metadata:
+    cvss_score: "9.8 (Network: AV, Privileged: PR:N, User: UR:N)"
+    cwe: "CWE-89: Improper Neutralization of Special Elements used in an SQL Command"
+    affected_version: "v2.1.0 - v2.3.1"
+    affected_endpoints:
+      - "/api/users/search"
+      - "/api/products/filter"
+  
+  description:
+    content: "Detailed explanation of vulnerability"
+    technical_depth: "High"
+  
+  proof_of_concept:
+    format: "Code block with actual working exploit"
+    request:
+      method: "POST"
+      url: "/api/users/search"
+      payload: "id=' OR 1=1 --"
+    expected_result: "Returns all users (should be unauthorized)"
+  
+  impact:
+    confidentiality: "HIGH (Database contents exposed)"
+    integrity: "HIGH (Can modify/delete data)"
+    availability: "MEDIUM (Could crash database)"
+  
+  remediation:
+    code_before: "vulnerable code snippet"
+    code_after: "secure code snippet"
+    explanation: "Why this fix works"
+
+tones_and_styles:
+  
+  executive_tone:
+    - "Avoid technical jargon"
+    - "Focus on business impact"
+    - "Use clear risk levels (Critical → Low)"
+    - "Provide cost-benefit analysis"
+  
+  technical_tone:
+    - "Be precise about constraints"
+    - "Include relevant CVEs/CWEs"
+    - "Show complete attack chains"
+    - "Provide remediation code"
+
+metrics_to_include:
+  - "Total vulnerabilities by severity"
+  - "Overall CVSS score"
+  - "Estimated time to exploit each"
+  - "Estimated remediation time"
+  - "Financial impact (if applicable)"
+
+quality_checks:
+  - "All findings have reproducible PoCs"
+  - "No contradictions between sections"
+  - "Remediation steps are actionable"
+  - "No sensitive data (passwords, IPs) exposed"
+  - "Report is organization-specific (not generic)"

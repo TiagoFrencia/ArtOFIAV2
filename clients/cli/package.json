@@ -1,0 +1,61 @@
+{
+  "name": "@artofIA/cli",
+  "version": "2.0.0",
+  "description": "Professional Terminal UI for ArtOfIA V2 - Real-time operation monitoring with human-in-the-loop approval system",
+  "main": "dist/index.js",
+  "bin": {
+    "artofIA": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "start:dev": "ts-node src/index.tsx",
+    "lint": "eslint src/**/*.{ts,tsx}",
+    "format": "prettier --write src/**/*.{ts,tsx}",
+    "test": "jest",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "artofIA",
+    "red-team",
+    "terminal",
+    "ui",
+    "tui",
+    "ink",
+    "react",
+    "offensive-security",
+    "approval-system"
+  ],
+  "author": "ArtOfIA Team",
+  "license": "MIT",
+  "dependencies": {
+    "ink": "^4.4.1",
+    "react": "^18.2.0",
+    "@types/react": "^18.2.0",
+    "ink-select-input": "^5.0.0",
+    "ink-spinner": "^4.1.0",
+    "ink-table": "^3.1.0",
+    "ws": "^8.14.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "@typescript-eslint/eslint-plugin": "^6.10.0",
+    "@typescript-eslint/parser": "^6.10.0",
+    "eslint": "^8.53.0",
+    "prettier": "^3.0.0",
+    "ts-node": "^10.9.0",
+    "@types/node": "^20.8.0",
+    "@types/ws": "^8.5.0",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.0",
+    "ts-jest": "^29.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/artofIA/artofIA-v2.git"
+  }
+}

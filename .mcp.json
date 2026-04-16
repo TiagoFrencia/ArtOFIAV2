@@ -1,0 +1,176 @@
+{
+  "mcpVersion": "2024-11-05",
+  "configVersion": "1.1.0",
+  "lastUpdated": "2026-04-15T10:30:00Z",
+  "description": "ArtOfIA Autonomous Agents - MCP Configuration with Enhanced Security",
+  "cacheDir": "src/memory/vector_db",
+  "auditLog": "src/memory/knowledge_graph/audit.log",
+  
+  "mcpServers": {
+    "orchestrator": {
+      "command": "python",
+      "args": ["-m", "src.orchestrator.server"],
+      "env": {
+        "MODE": "validation",
+        "LOG_LEVEL": "DEBUG",
+        "AUDIT_ENABLED": "true"
+      },
+      "limits": {
+        "timeoutSeconds": 120,
+        "memoryMb": 512
+      }
+    },
+    
+    "recon_agent": {
+      "command": "python",
+      "args": ["-m", "src.agents.recon_agent.server"],
+      "env": {
+        "STEALTH_MODE": "true",
+        "PROFILE": "minimal"
+      },
+      "capabilities": ["reconnaissance", "passive_scanning"],
+      "limits": {
+        "timeoutSeconds": 300,
+        "memoryMb": 256
+      }
+    },
+    
+    "logic_agent": {
+      "command": "python",
+      "args": ["-m", "src.agents.logic_agent.server"],
+      "env": {
+        "MODE": "planning",
+        "REQUIRES_VALIDATION": "true"
+      },
+      "capabilities": ["attack_planning", "routing"],
+      "limits": {
+        "timeoutSeconds": 60,
+        "memoryMb": 384
+      }
+    },
+    
+    "exploit_agent": {
+      "command": "docker",
+      "args": ["exec", "artofiabox", "python", "-m", "src.agents.exploit_agent.executor"],
+      "env": {
+        "SANDBOX": "required",
+        "VALIDATION_REQUIRED": "true"
+      },
+      "capabilities": ["exploit_execution"],
+      "restrictedTools": ["filesystem", "network_direct"],
+      "limits": {
+        "timeoutSeconds": 180,
+        "memoryMb": 1024
+      }
+    },
+    
+    "evasion_browser": {
+      "command": "docker",
+      "args": ["run", "--network", "artofianet", "evasion-browser:latest"],
+      "env": {
+        "HEADLESS": "true",
+        "STEALTH": "true"
+      },
+      "capabilities": ["browser_evasion"],
+      "limits": {
+        "timeoutSeconds": 240,
+        "memoryMb": 512
+      }
+    },
+    
+    "exploit_jwt": {
+      "command": "python",
+      "args": ["-m", "src.agents.exploit_agent.jwt_server"],
+      "env": {
+        "TRANSPORT_MODE": "stdio",
+        "ISOLATION_LEVEL": "strict",
+        "REQUIRE_ORCHESTRATOR_VALIDATION": "true"
+      },
+      "capabilities": ["jwt_attacks"],
+      "limits": {
+        "timeoutSeconds": 120,
+        "memoryMb": 256
+      }
+    },
+    
+    "fuzzing_web": {
+      "command": "docker",
+      "args": ["run", "--network", "artofianet", "fuzzer:latest"],
+      "env": {
+        "SANDBOX": "required"
+      },
+      "capabilities": ["fuzzing"],
+      "limits": {
+        "timeoutSeconds": 600,
+        "memoryMb": 1024
+      }
+    }
+  },
+  
+  "security": {
+    "defaultBehavior": "deny",
+    "description": "All actions blocked by default. Only whitelisted operations allowed.",
+    "requireOrchestratorValidation": ["exploit_agent", "exploit_jwt", "fuzzing_web"],
+    "sandboxRequired": ["exploit_agent", "evasion_browser", "fuzzing_web"],
+    "blockedOperations": [
+      "direct_host_execution",
+      "modify_docker_compose",
+      "modify_agents_md",
+      "modify_mcp_json",
+      "network_breakout",
+      "filesystem_traversal"
+    ],
+    "networkIsolation": true,
+    "auditAllActions": true,
+    "logLevel": "DEBUG",
+    "protectedFiles": [
+      "docker-compose.yml",
+      ".mcp.json",
+      "AGENTS.md"
+    ]
+  },
+  
+  "audit": {
+    "enabled": true,
+    "logFormat": "jsonl",
+    "retention_days": 90,
+    "compression": "gzip",
+    "locations": {
+      "orchestrator_logs": "src/memory/knowledge_graph/logs/",
+      "audit_trail": "src/memory/knowledge_graph/audit/",
+      "attack_success": "src/memory/knowledge_graph/attacks/success/",
+      "attack_failure": "src/memory/knowledge_graph/attacks/failure/",
+      "defense_events": "src/memory/knowledge_graph/defenses/"
+    }
+  },
+  
+  "integrations": {
+    "vectorDb": {
+      "type": "postgresql",
+      "extension": "pgvector",
+      "purpose": "Store attack payloads and successful exploits",
+      "connectionRequired": false,
+      "fallback": "file-based JSON storage"
+    },
+    "knowledgeGraph": {
+      "type": "neo4j",
+      "purpose": "Relations between payloads, defenses, and evasion techniques",
+      "connectionRequired": false,
+      "fallback": "file-based JSONL storage"
+    },
+    "redisCache": {
+      "type": "redis",
+      "purpose": "Cache attack success rates and learned patterns",
+      "connectionRequired": false,
+      "fallback": "in-memory cache"
+    }
+  },
+
+  "orchestrator": {
+    "enabled": true,
+    "mode": "validation",
+    "checkpoints": 6,
+    "description": "Central authority for semantic validation of all actions",
+    "requiredFor": ["exploit_execution", "fuzzing", "network_actions"]
+  }
+}

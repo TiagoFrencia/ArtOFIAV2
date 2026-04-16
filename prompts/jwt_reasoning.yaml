@@ -1,0 +1,146 @@
+"""
+JWT Reasoning Prompt Template
+=============================
+Cognitive template for JWT vulnerability analysis.
+
+Guía al agente en cómo razonar sobre JWT weaknesses.
+"""
+
+name: "JWT Vulnerability Analysis"
+version: "1.0.0"
+domain: "authentication"
+
+# COGNITIVE FRAMEWORK
+reasoning_framework:
+  
+  step_1_token_decomposition:
+    description: "Diseccionar el JWT en sus 3 partes"
+    tasks:
+      - "Extract header (contains algorithm)"
+      - "Extract payload (contains claims)"
+      - "Extract signature (proof of authenticity)"
+    key_questions:
+      - "What algorithm is used? (HS256 vs RS256)"
+      - "Are claims trustworthy?"
+      - "Is signature valid?"
+  
+  step_2_algorithm_analysis:
+    description: "Analizar el algoritmo usado"
+    checks:
+      - check: "Algorithm 'none' allowed?"
+        exploitable: true
+        description: "No signature validation - trivial bypass"
+      
+      - check: "Algorithm 'HS256' with known secret?"
+        exploitable: true
+        description: "Can forge signatures"
+      
+      - check: "Algorithm confusion (HS256 vs RS256)?"
+        exploitable: true
+        description: "Switch to symmetric algorithm"
+      
+      - check: "Weak key length?"
+        exploitable: true
+        description: "Keyspace too small to brute force"
+  
+  step_3_payload_analysis:
+    description: "Analizar claims en el payload"
+    critical_claims:
+      - "sub (subject/user ID)"
+      - "admin/role (privilege level)"
+      - "iat/exp (time validity)"
+      - "aud (audience)"
+    exploitation_ideas:
+      - "Modify user ID from '123' to '999' (admin account)"
+      - "Set 'admin' claim to true"
+      - "Extend 'exp' to year 2099"
+      - "Add new claim 'superuser': true"
+  
+  step_4_signature_validation:
+    description: "Validar si servidor verifica signature"
+    tests:
+      - "Remove signature entirely"
+      - "Modify payload, keep old signature"
+      - "Modify signature randomly"
+      - "Use different algorithm"
+    expected_behavior:
+      - "Server should reject all tampering"
+      - "If accepted, critical vulnerability"
+
+# ATTACK PATTERNS
+common_vulnerabilities:
+  
+  vector_1_weak_secret:
+    name: "Weak Signing Secret"
+    indicators:
+      - "HS256 with common passwords (secret, 12345, password)"
+      - "Single-word secrets"
+      - "Default/known secrets"
+    exploitation_steps:
+      - "Capture JWT from intercepted request"
+      - "On local machine: try common secrets"
+      - "Use jwt.io with 'verify signature' feature"
+      - "Once secret found, forge tokens"
+    risk: "CRITICAL"
+  
+  vector_2_algorithm_confusion:
+    name: "Algorithm Confusion Attack"
+    description: "Change from RS256 (asymmetric) to HS256 (symmetric)"
+    exploitation_steps:
+      - "Capture JWT with alg: RS256 (public key used)"
+      - "Modify JWT to alg: HS256"
+      - "Modify payload (e.g., admin: true)"
+      - "Sign with public key as symmetric secret"
+      - "Server might accept because HS256 uses symmetric key"
+    risk: "HIGH"
+  
+  vector_3_none_algorithm:
+    name: "'none' Algorithm Bypass"
+    description: "Use alg: none to skip signature verification"
+    exploitation_steps:
+      - "Create JWT with header { alg: 'none' }"
+      - "Set desired admin claims in payload"
+      - "Leave signature empty or omit"
+      - "Server accepts because alg is 'none'"
+    risk: "CRITICAL"
+  
+  vector_4_expiration_bypass:
+    name: "Extending Token Expiration"
+    description: "Modify 'exp' claim to extend validity"
+    exploitation_steps:
+      - "Decode JWT (base64 decode)"
+      - "Modify 'exp' to future date (2099)"
+      - "Recalculate signature with known secret"
+      - "Use token indefinitely"
+    risk: "HIGH"
+
+# DETECTION METHODOLOGY
+detection_logic:
+  
+  assessment_checklist:
+    item_1: true  # Check algorithm
+    item_2: true  # Check secrets
+    item_3: true  # Check claims
+    item_4: true  # Check expiration
+    item_5: true  # Check signature validation
+  
+  confidence_scoring:
+    weak_secret_found: +90  # High confidence
+    algorithm_none_allowed: +95  # Very high
+    no_expiration: +70  # Medium-high
+    standard_config: -50  # Likely secure
+
+# REMEDIATION GUIDANCE
+remediation_steps:
+  for_developers:
+    - "Use strong secrets (minimum 256 bits)"
+    - "Use RS256 (asymmetric) not HS256"
+    - "Always validate signature and algorithm"
+    - "Set reasonable expiration times (15 mins)"
+    - "Use libraries that verify by default"
+  
+  for_ops:
+    - "Rotate secrets regularly"
+    - "Monitor for algorithm mismatches"
+    - "Alert on expired token usage"
+    - "Implement token revocation lists"

@@ -1,0 +1,88 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2026-01-15",
+  "registry": {
+    "recon_strategy": {
+      "file": "prompts/recon_strategy.yaml",
+      "version": "1.0.0",
+      "domain": "reconnaissance",
+      "description": "Strategy for passive information gathering"
+    },
+    "workflow_analysis": {
+      "file": "prompts/workflow_analysis.yaml",
+      "version": "1.0.0",
+      "domain": "business_logic",
+      "description": "Analyze application workflows for anomalies"
+    },
+    "jwt_reasoning": {
+      "file": "prompts/jwt_reasoning.yaml",
+      "version": "1.0.0",
+      "domain": "authentication",
+      "description": "JWT vulnerability detection and exploitation"
+    },
+    "auth_escalation": {
+      "file": "prompts/auth_escalation.yaml",
+      "version": "1.0.0",
+      "domain": "authorization",
+      "description": "Privilege escalation patterns and techniques"
+    },
+    "post_exploitation": {
+      "file": "prompts/post_exploitation.yaml",
+      "version": "1.0.0",
+      "domain": "post_exploit",
+      "description": "Post-exploitation strategy planning"
+    },
+    "report_generation": {
+      "file": "prompts/report_generation.yaml",
+      "version": "1.0.0",
+      "domain": "reporting",
+      "description": "Executive and technical report generation"
+    },
+    "guardrails": {
+      "file": "prompts/guardrails.yaml",
+      "version": "1.0.0",
+      "domain": "safety",
+      "description": "Security boundaries and ethical limits"
+    }
+  },
+  "agent_personalities": {
+    "recon_agent": {
+      "role": "Passive information gatherer",
+      "tools": ["whois", "dns", "web_scraping"],
+      "constraints": ["no_active_scans", "no_direct_attacks"]
+    },
+    "logic_agent": {
+      "role": "Vulnerability analyst",
+      "tools": ["workflow_analysis", "auth_analysis", "business_logic_detection"],
+      "constraints": ["no_execution", "analysis_only"]
+    },
+    "exploit_agent": {
+      "role": "Active exploitation specialist",
+      "tools": ["sqlinjection", "xss", "rce"],
+      "constraints": ["sandbox_only", "supervisor_validation"]
+    }
+  },
+  "knowledge_domains": [
+    {
+      "name": "web_vulnerabilities",
+      "categories": ["injection", "authentication", "authorization", "data_exposure"],
+      "coverage": "OWASP Top 10"
+    },
+    {
+      "name": "business_logic",
+      "categories": ["workflow_manipulation", "state_exploitation", "race_conditions"],
+      "coverage": "Custom domain"
+    },
+    {
+      "name": "cloud_security",
+      "categories": ["IAM", "misconfiguration", "secrets_exposure"],
+      "coverage": "AWS, Azure, GCP"
+    }
+  ],
+  "evaluation_metrics": {
+    "accuracy": "Detection vs. false positives",
+    "coverage": "Vulnerabilities found / total vulnerabilities",
+    "time_to_exploitation": "Minutes to successful exploit",
+    "evasion_success_rate": "Percentage of attacks avoiding detection"
+  }
+}
