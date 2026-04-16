@@ -1,0 +1,257 @@
+[MASTER]
+# Analyse import fallback blocks for stdlib modules.
+analyse-fallback-blocks = no
+
+# Load the extensions in the following order:
+load-plugins = 
+
+# Minimum Python version to target
+py-version = 3.11
+
+[MESSAGES CONTROL]
+# Only show warnings with the listed confidence levels. Leave empty to show
+# all. Valid levels: HIGH, INFERENCE, INFERENCE_FAILURE, UNDEFINED.
+confidence = 
+
+# Disable the message, report, category or checker with the given id(s). You
+# can either give multiple identifiers separated by comma (,) or put this
+# option multiple times (only on the command line, not in the configuration
+# file where it should appear only once). You can also use "--disable=all" to
+# disable everything first and then reenable specific checks. For example, if
+# you want to run only the similarities checker, you can use "--disable=all
+# --enable=similarities". If you want to run only the classes checker, but have
+# no Working with Pylint
+# issues with the IDs, you can use "--disable=all --enable=classes
+# --disable=fixme".
+disable =
+    C0111,  # missing-docstring
+    C0103,  # invalid-name
+    R0913,  # too-many-arguments
+    R0914,  # too-many-locals
+    W0212,  # protected-access
+    C0302,  # too-many-lines
+    R0915,  # too-many-statements
+    W0703,  # broad-except
+    R0801,  # duplicate-code
+
+[REPORTS]
+# Python expression which should return a note less than or equal to 10 (10 is
+# the highest note). You have access to the variables errors, warnings,
+# refactor, fatal as the message count with the template modulo applied and
+# _texamples values computed. This is used by the global evaluation report
+# (RP0004). You can also create your own scoring function.
+evaluation = max(0, 0 if fatal else 10.0 - ((float(5 * error + warning + refactor + convention) / statement) * 10))
+
+# Set the output format. Available formats are text, parseable, colorized, json
+# and msvs (visual studio). You can also give a reporter class e.g. mypackage.mymodule.MyReporterClass -d parseable.
+output-format = colorized
+
+[FORMAT]
+# Expected format of line ending, especially useful when checking scripts as
+# they are only checked when a line number <= max-line-length is reached and
+# difference between expected and actual line ending is greater than or equal
+# to the difference-tolerance value (default 1).
+expected-line-ending-type = LF
+
+# Regexp for a line that is allowed to be longer than the limit.
+ignore-long-lines = ^\s*(# )?<?https?://\S+>?$
+
+# Number of spaces of indent required inside a hanging or continued line.
+indent-after-paren = 4
+
+# String used as indentation unit. This is usually "    " (4 spaces) or "\t" (1
+# tab).
+indent-string = '    '
+
+# Maximum number of characters on a single line.
+max-line-length = 88
+
+[LOGGING]
+# The type of string formatting that logging methods do. `old` for %
+# formatting, `new` for {} formatting.
+logging-format-style = old
+
+# Logging modules which allow lazy formatting of logging place holders
+# (%s, %d, %i).
+logging-modules = logging
+
+[MISCELLANEOUS]
+# List of note tags to take in consideration, separated by a comma.
+notes = FIXME,XXX,TODO
+
+[SIMILARITIES]
+# Comments are removed from the similarity computation
+ignore-comments = yes
+
+# Docstrings are removed from the similarity computation
+ignore-docstrings = yes
+
+# Imports are removed from the similarity computation
+ignore-imports = yes
+
+# Minimum lines number of a similarity.
+min-similarity-lines = 4
+
+[SPELLING]
+# Limits count of emitted suggestions for spelling mistakes.
+max-spelling-suggestions = 4
+
+# Path to a file that contains private dictionary; one word per line.
+spelling-private-word-list = 
+
+[VARIABLES]
+# List of qualified module names which can have objects that can change during
+# runtime and trigger false positives E1602.
+allow-global-unused-variables = yes
+
+# Argument names that match this expression will be ignored. Default to name
+# with leading underscore.
+argument-naming-style = snake_case
+
+# Attribute names that match this expression will be ignored. Default to name
+# with leading underscore.
+attr-naming-style = snake_case
+
+# Bad variable names which should always be refused, separated by a comma.
+bad-names = foo,bar,baz,toto,tutu,tata
+
+# Class attribute names that match this expression will be ignored. Default to
+# name with leading underscore.
+class-attribute-naming-style = any
+
+# Class constant names that match this expression will be ignored. Default to
+# name with leading underscore.
+class-const-naming-style = UPPER_CASE
+
+# Tells whether unused global variables should be treated as a violation.
+globals-are-dangerous = no
+
+# Good variable names which should always be accepted, separated by a comma.
+good-names = i,j,k,ex,Run,_
+
+# Include a hint for the correct naming format with invalid-name.
+include-naming-hint = no
+
+# Inlined variables can be used before definition.
+init-import = no
+
+# Function names that match this expression will be ignored. Default to name
+# with leading underscore.
+function-naming-style = snake_case
+
+# Method names that match this expression will be ignored. Default to name
+# with leading underscore.
+method-naming-style = snake_case
+
+# Module names that match this expression will be ignored. Default to name
+# with leading underscore.
+module-naming-style = snake_case
+
+# Regular expression which overrides bad-variable-names
+name-group = 
+
+# Regular expression which should only match function or class names that do
+# not require a docstring.
+no-docstring-rgx = ^_
+
+# List of decorators that define properties, such as property() for the
+# property-related checks, add the name of the base class to this list, e.g.,
+#      dummy_decorator = pylint_django.checkers.DjangoDecoratorChecker.dummy_property
+property-classes = abc.abstractmethod
+
+# Tells whether we should check for unused import in __init__ files.
+redefining-builtins-modules = six.moves,past.builtins,future.builtins,builtins,io
+
+[DESIGN]
+# List of regular expressions of class ancestor names to skip when trying to
+# avoid duplicating code (to be used instead of the class-design option).
+exclude-too-few-public-methods = 
+
+# List of qualname for functions/classes to use Magic values in
+# devirtualizing function calls to a parent class.
+ignore-mixin-members = yes
+
+# Tells whether to ignore the success percentage in the feature request.
+ignore-on-local-config = no
+
+# Maximum number of arguments for function / method.
+max-args = 10
+
+# Maximum number of attributes for a class (see R0902).
+max-attributes = 10
+
+# Maximum number of boolean expressions in an if statement (see R0916).
+max-bool-expr = 5
+
+# Maximum number of branch for function / method body (see R0912).
+max-branches = 12
+
+# Maximum number of locals for function / method body (see R0914).
+max-locals = 15
+
+# Maximum number of parents for a class (see R0901).
+max-parents = 7
+
+# Maximum number of public methods for a class (see R0904).
+max-public-methods = 20
+
+# Maximum number of return / break / continue statements function / method body
+# (see R0911).
+max-returns = 6
+
+# Maximum number of statements in function / method body (see R0915).
+max-statements = 50
+
+# Minimum number of public methods for a class (see R0903).
+min-public-methods = 2
+
+[CLASSES]
+# Comma-separated list of valid metaclass members which should be ignored
+# when the invalid-metaclass-argument is triggered. By default, we check
+# for the two PEPs 484 and 585 related erroneous meta classes (DeprecationWarning
+# and PEP560Metaclass) from stdlib typing module.
+valid-metaclass-members = 
+
+# List of decorators that define abstract methods, such as property() for the
+# property-related checks, add the name of the base class to this list, e.g.,
+#      dummy_decorator = pylint_django.checkers.DjangoDecoratorChecker.dummy_property
+defining-attr-methods = __init__,__new__,setUp,__post_init__
+
+[IMPORTS]
+# List of modules names for which member attributes should not be checked
+# (useful for modules/projects where namespaces are manipulated during runtime
+# and thus existing member attributes cannot be deduced by static analysis). It
+# supports qualified module names, as well as Unix pattern matching.
+ignored-modules = 
+
+# Create a graph of every (a -> b) contributions.
+import-graph = 
+
+# Create a graph of every module this one depends on and merge it with
+# all dependencies it transitively depends on.
+ext-import-graph = 
+
+# Create a graph of the given module(s) only when it uses something external.
+# A list of module names is required as input the graph can also comprise
+# modules from the standard library,
+ext-import-graph = 
+
+# Force import order to recognize a module as part of a local imports group.
+known-local-folder = 
+
+# Force import order to recognize a module as part of the standard
+# compatibility libraries.
+known-standard-library = 
+
+# Force import order to recognize a module as part of a third party library.
+known-third-party = enchant
+
+# Analyse import fallback blocks. This can be used to support both Python 2
+# and 3 compatible code, which means that the expected behaviour is to check
+# the blocks.
+analyse-fallback-blocks = no
+
+[EXCEPTIONS]
+# Exceptions that will emit a warning when being caught. Defaults to
+# "Exception".
+overgeneral-exceptions = Exception

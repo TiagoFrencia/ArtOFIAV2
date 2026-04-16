@@ -12,6 +12,110 @@ import logging
 from typing import Dict, Any, Tuple, List
 from enum import Enum
 from datetime import datetime
+import time
+
+
+class RateLimiter:
+    """
+    Token bucket rate limiter para prevenir abuse.
+    
+    Limita requests por:
+    - Agent (e.g., 100 requests/min per agent)
+    - Resource type (e.g., 1000 Docker commands/hour)
+    - Global (e.g., 10000 total requests/hour)
+    """
+    
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        
+        # Rate limit configuration (requests per window in seconds)
+        self.limits = {
+            "agent": {"max_requests": 100, "window_seconds": 60},  # 100 req/min per agent
+            "docker_command": {"max_requests": 50, "window_seconds": 60},  # 50 commands/min
+            "api_call": {"max_requests": 200, "window_seconds": 60},  # 200 API calls/min
+            "global": {"max_requests": 1000, "window_seconds": 60},  # 1000 total/min
+        }
+        
+        # Token buckets: {key} -> {"tokens": float, "last_refill": float}
+        self.buckets: Dict[str, Dict[str, Any]] = {}
+    
+    def check_rate_limit(self, resource_key: str, resource_type: str = "agent") -> Tuple[bool, str]:
+        """
+        Verifica si se permite la request dentro del límite de rate.
+        
+        Args:
+            resource_key: Identificador del recurso (e.g., "recon_agent", "docker")
+            resource_type: Tipo de recurso para obtener límites
+        
+        Returns:
+            (permitido, razón_si_rechazado)
+        """
+        if resource_type not in self.limits:
+            return True, ""  # No límite configurado
+        
+        limit_config = self.limits[resource_type]
+        max_requests = limit_config["max_requests"]
+        window = limit_config["window_seconds"]
+        
+        bucket_key = f"{resource_type}:{resource_key}"
+        current_time = time.time()
+        
+        # Inicializar bucket si no existe
+        if bucket_key not in self.buckets:
+            self.buckets[bucket_key] = {
+                "tokens": max_requests,
+                "last_refill": current_time
+            }
+        
+        bucket = self.buckets[bucket_key]
+        
+        # Calcular tokens a recuperar (refill)
+        time_since_refill = current_time - bucket["last_refill"]
+        tokens_to_add = (time_since_refill / window) * max_requests
+        
+        # Actualizar bucket
+        bucket["tokens"] = min(max_requests, bucket["tokens"] + tokens_to_add)
+        bucket["last_refill"] = current_time
+        
+        # Verificar si hay tokens disponibles
+        if bucket["tokens"] >= 1:
+            bucket["tokens"] -= 1
+            return True, ""
+        
+        # Límite excedido
+        remaining_time = window - time_since_refill
+        return (
+            False,
+            f"Rate limit exceeded: {resource_key} ({resource_type}). "
+            f"Retry after {remaining_time:.1f}s"
+        )
+    
+    def reset_bucket(self, resource_key: str, resource_type: str = "agent") -> None:
+        """Reset token bucket para un recurso."""
+        bucket_key = f"{resource_type}:{resource_key}"
+        if bucket_key in self.buckets:
+            limit_config = self.limits[resource_type]
+            self.buckets[bucket_key] = {
+                "tokens": limit_config["max_requests"],
+                "last_refill": time.time()
+            }
+    
+    def get_bucket_status(self, resource_key: str, resource_type: str = "agent") -> Dict[str, Any]:
+        """Retorna estado actual del bucket."""
+        bucket_key = f"{resource_type}:{resource_key}"
+        
+        if bucket_key not in self.buckets:
+            return {}
+        
+        bucket = self.buckets[bucket_key]
+        limit_config = self.limits.get(resource_type, {})
+        
+        return {
+            "available_tokens": bucket["tokens"],
+            "max_tokens": limit_config.get("max_requests", 0),
+            "window_seconds": limit_config.get("window_seconds", 0),
+            "last_refill": bucket["last_refill"]
+        }
 
 
 class SecurityLevel(Enum):
@@ -47,18 +151,33 @@ class SecurityValidator:
     REQUIRED_SANDBOX = ["exploit_agent", "fuzzing_web"]
     ORIGIN_VALIDATION_REQUIRED = ["exploit_agent", "exploit_jwt"]
 
-    # ⭐ NUEVO: Whitelist de comandos Docker permitidos (no blacklist regex)
-    # CVE-2026-2256: Never use regex blacklist for command validation
+    # ⭐ SECURITY: Whitelist defensiva de comandos Docker
+    # Principio: Bloquear explícitamente lo peligroso, permitir lo seguro
     ALLOWED_DOCKER_COMMANDS = {
         "python": {
-            "args": ["-m"],
-            "modules": ["src.agents.exploit_agent.executor", "src.agents.recon_agent.server"]
+            "allowed_flags": ["-m"],  # SOLO -m permitido
+            "forbidden_flags": ["-c", "-W", "--", "-u", "-O"],  # Explícitamente bloqueados
+            "modules": [
+                "src.agents.exploit_agent.executor",
+                "src.agents.recon_agent.server"
+            ],
+            "description": "Python module execution only"
         },
         "bash": {
-            "scripts": ["/tmp/sandbox_scripts/payload.sh"]
+            "allowed_scripts": {
+                "/tmp/sandbox_scripts/payload.sh": {
+                    "max_lines": 1000,
+                    "allowed_commands": ["curl", "wget", "grep", "sed", "awk", "cut"],
+                    "forbidden_commands": ["rm", "dd", "mkfs", "shutdown"]
+                }
+            },
+            "description": "Restricted shell scripts"
         },
         "curl": {
-            "flags": ["-X", "-H", "-d", "-s"]
+            "allowed_flags": ["-X", "-H", "-d", "-s", "-o", "-O"],
+            "forbidden_flags": ["-K", "--config", "-Z"],  # Config file, parallel not allowed
+            "allowed_hosts": ["localhost", "127.0.0.1"],  # Whitelist de destinos
+            "description": "Limited curl with host restrictions"
         }
     }
 
@@ -69,6 +188,9 @@ class SecurityValidator:
         
         # ⭐ NUEVO: Historial de llamadas a herramientas para detectar veil dropping
         self.tool_call_history: List[Dict[str, Any]] = []
+        
+        # ⭐ NUEVO: Rate limiter para prevenir abuse
+        self.rate_limiter = RateLimiter()
 
     async def validate_action(
         self, agent_name: str, config: Dict[str, Any], action: Dict[str, Any]
@@ -94,6 +216,27 @@ class SecurityValidator:
             reasons.append(f"Agente desconocido: {agent_name}")
             self._log_validation(agent_name, action, False, reasons)
             return False, reasons
+
+        # ===== CHECKPOINT 1.5: Rate limit (NEW) =====
+        rate_limited, rate_reason = self.rate_limiter.check_rate_limit(
+            agent_name, 
+            resource_type="agent"
+        )
+        if not rate_limited:
+            reasons.append(rate_reason)
+            self._log_validation(agent_name, action, False, reasons)
+            return False, reasons
+        
+        # Rate limit Docker commands separately
+        if action.get("type") == "docker_exec":
+            docker_limited, docker_reason = self.rate_limiter.check_rate_limit(
+                "docker_commands",
+                resource_type="docker_command"
+            )
+            if not docker_limited:
+                reasons.append(docker_reason)
+                self._log_validation(agent_name, action, False, reasons)
+                return False, reasons
 
         # ===== CHECKPOINT 2: Operaciones bloqueadas categoricamente =====
         blocked_reason = self._check_blocked_operations(action)
@@ -295,20 +438,77 @@ class SecurityValidator:
         # Validar argumentos según comando
         allowed_config = self.ALLOWED_DOCKER_COMMANDS[cmd_base]
 
+        # ⭐ SECURITY CHECK 1: Bloquear flags explícitamente peligrosos
+        forbidden = allowed_config.get("forbidden_flags", [])
+        for flag in forbidden:
+            if flag in args or flag in command:
+                return False, f"Flag peligroso bloqueado: {flag}"
+
         if cmd_base == "python":
-            if args and args[0] != "-m":
+            # Solo -m permitido
+            if "-m" not in args:
                 return False, "Solo -m module execution permitido para python"
+            
+            # Verificar que -m es el primer arg
+            if args[0] != "-m":
+                return False, "Flag -m debe ser el primer argumento"
+            
             if len(args) < 2:
-                return False, "Module especificado requerido"
+                return False, "Module especificado requerido después de -m"
 
             module = args[1]
-            if module not in allowed_config.get("modules", []):
-                return False, f"Module '{module}' no en whitelist"
+            allowed_modules = allowed_config.get("modules", [])
+            if module not in allowed_modules:
+                return False, f"Module '{module}' no en whitelist. Permitidos: {allowed_modules}"
 
         elif cmd_base == "bash":
-            script = args[0] if args else None
-            if script not in allowed_config.get("scripts", []):
-                return False, f"Script no en whitelist"
+            if not args or len(args) == 0:
+                return False, "Script path requerido para bash"
+            
+            script_path = args[0]
+            allowed_scripts = allowed_config.get("allowed_scripts", {})
+            
+            if script_path not in allowed_scripts:
+                return False, f"Script '{script_path}' no en whitelist"
+            
+            # ⭐ SECURITY: Validar contenido del script
+            script_config = allowed_scripts[script_path]
+            try:
+                with open(script_path, 'r') as f:
+                    script_content = f.read()
+                    lines = script_content.split('\n')
+                    
+                    # Validar número de líneas
+                    max_lines = script_config.get("max_lines", 100)
+                    if len(lines) > max_lines:
+                        return False, f"Script excede {max_lines} líneas"
+                    
+                    # Validar que no contiene comandos peligrosos
+                    forbidden_cmds = script_config.get("forbidden_commands", [])
+                    for line in lines:
+                        if line.strip().startswith("#"):
+                            continue  # Skip comments
+                        for forbidden_cmd in forbidden_cmds:
+                            if forbidden_cmd in line:
+                                return False, f"Comando peligroso en script: {forbidden_cmd}"
+            except FileNotFoundError:
+                return False, f"Script no encontrado: {script_path}"
+
+        elif cmd_base == "curl":
+            # Validar flags
+            allowed_flags = allowed_config.get("allowed_flags", [])
+            for i, arg in enumerate(args):
+                if arg.startswith("-") and arg not in allowed_flags:
+                    return False, f"Flag curl no permitida: {arg}"
+            
+            # ⭐ SECURITY: Validar que solo accede a hosts permitidos
+            allowed_hosts = allowed_config.get("allowed_hosts", [])
+            for arg in args:
+                if arg.startswith("http://") or arg.startswith("https://"):
+                    # Extraer host
+                    host = arg.split("://")[1].split("/")[0].split(":")[0]
+                    if host not in allowed_hosts:
+                        return False, f"Host no permitido: {host}. Permitidos: {allowed_hosts}"
 
         return True, ""
 

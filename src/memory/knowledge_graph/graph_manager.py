@@ -187,8 +187,16 @@ class GraphManager:
         if self.driver:
             try:
                 async with self.driver.session() as session:
+                    # ⭐ SECURITY: Validar que node_type es enum válido antes de usar en query
+                    # Nota: En Cypher, los labels NO pueden ser parámetros (limitación del lenguaje),
+                    # pero validamos el enum para prevenir inyección si el enum es comprometido
+                    if not isinstance(node_type, NodeType):
+                        raise ValueError(f"Invalid node_type: {node_type}")
+                    
+                    node_label = node_type.value  # Acceso al valor del enum
+                    
                     cypher = f"""
-                    CREATE (n:{node_type.value} {{
+                    CREATE (n:{node_label} {{
                         id: $id,
                         name: $name,
                         properties: $props,
@@ -207,7 +215,7 @@ class GraphManager:
                     )
                 
                 self.stats["nodes_created"] += 1
-                self.logger.debug(f"  ✓ Nodo creado: {node_type.value} - {name}")
+                self.logger.debug(f"  ✓ Nodo creado: {node_label} - {name}")
                 
             except Exception as e:
                 self.logger.warning(f"  ⚠ Error persistiendo nodo: {e}")
@@ -249,10 +257,16 @@ class GraphManager:
         if self.driver:
             try:
                 async with self.driver.session() as session:
+                    # ⭐ SECURITY: Validar que relation_type es enum válido
+                    if not isinstance(relation_type, RelationType):
+                        raise ValueError(f"Invalid relation_type: {relation_type}")
+                    
+                    relation_label = relation_type.value  # Acceso al valor del enum
+                    
                     cypher = f"""
                     MATCH (a) WHERE a.id = $source_id
                     MATCH (b) WHERE b.id = $target_id
-                    CREATE (a)-[r:{relation_type.value} {{
+                    CREATE (a)-[r:{relation_label} {{
                         confidence: $confidence,
                         properties: $props,
                         created_at: $created_at
@@ -270,7 +284,7 @@ class GraphManager:
                     )
                 
                 self.stats["relations_created"] += 1
-                self.logger.debug(f"  ✓ Relación creada: {relation_type.value}")
+                self.logger.debug(f"  ✓ Relación creada: {relation_label}")
                 
             except Exception as e:
                 self.logger.warning(f"  ⚠ Error persistiendo relación: {e}")

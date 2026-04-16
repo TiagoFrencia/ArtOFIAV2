@@ -1,0 +1,58 @@
+# Python Dependencies for ArtOfIA
+
+# Core Framework & Async
+asyncio==3.4.3  # Built-in, version managed by Python
+aiohttp==3.9.1
+aiofiles==23.2.1
+
+# Database & Graph
+neo4j==5.16.0
+sqlalchemy==2.0.23
+
+# Web & HTTP
+requests==2.31.0
+urllib3==2.1.0
+httpx==0.25.2
+
+# Configuration & Environment
+python-dotenv==1.0.0
+pydantic==2.5.3
+
+# Logging & Monitoring
+python-json-logger==2.0.7
+prometheus-client==0.19.0
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-benchmark==4.0.0
+pytest-mock==3.12.0
+
+# Code Quality & Linting
+black==23.12.0
+pylint==3.0.3
+mypy==1.7.1
+isort==5.13.2
+
+# Security & Vulnerability Scanning
+bandit==1.7.5
+safety==2.3.5
+
+# Documentation
+sphinx==7.2.6
+sphinx-rtd-theme==2.0.0
+
+# Development Tools
+ipython==8.18.1
+jupyter==1.0.0
+notebook==7.0.6
+
+# Optional: Docker & Container Tools
+docker==7.0.0
+
+# Optional: Monitoring & Metrics
+grafana-api==1.0.3
+
+# Optional: Cloud Integration
+boto3==1.34.3  # AWS SDK

@@ -9,6 +9,7 @@ Responsabilidades:
 """
 
 import logging
+import asyncio
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from pathlib import Path
@@ -40,12 +41,16 @@ class MemoryManager:
         
         # Buffer de auditoría para flush en shutdown
         self._audit_buffer: List[Dict[str, Any]] = []
+        self._buffer_lock = asyncio.Lock()  # ← THREAD SAFE: protege accesos concurrentes
 
         self.logger.info("✓ Memory Manager inicializado")
 
     async def log_operation(self, operation_id: str, operation: Dict[str, Any]) -> None:
         """
         Registra una operación completa en auditoría.
+        
+        🔒 THREAD-SAFE: Usa AsyncLock para prevenir race conditions cuando múltiples
+           agentes escriben simultáneamente.
 
         Args:
             operation_id: ID único de la operación
@@ -58,10 +63,12 @@ class MemoryManager:
             "status": "pending",
         }
 
-        self.audit_log.append(entry)
-        self._audit_buffer.append(entry)  # Agregar a buffer para flush
+        # 🔒 CRITICAL SECTION: Proteger accesos concurrentes al buffer
+        async with self._buffer_lock:
+            self.audit_log.append(entry)
+            self._audit_buffer.append(entry)  # Agregar a buffer para flush
 
-        # Persistir a disco
+        # Persistir a disco (fuera del lock para no bloquear otros writers)
         await self._persist_audit_entry(entry)
 
         self.logger.info(f"📝 Operación {operation_id} registrada en auditoría")
@@ -131,6 +138,7 @@ class MemoryManager:
         Registra un intento de ataque con resultado.
 
         CRÍTICO: Esta información se usa para adaptar estrategia futura.
+        🔒 THREAD-SAFE: Protegido con AsyncLock
 
         Args:
             attack_type: Tipo de ataque (sql_injection, jwt_abuse, xss, etc)
@@ -146,12 +154,18 @@ class MemoryManager:
             "details": details,
         }
 
+        # 🔒 CRITICAL SECTION
+        async with self._buffer_lock:
+            if success:
+                self.attack_successes.append(entry)
+            else:
+                self.attack_failures.append(entry)
+        
+        # Persistir fuera del lock
         if success:
-            self.attack_successes.append(entry)
             await self._persist_to_graph("attack_success", entry)
             self.logger.info(f"✓ Ataque exitoso registrado: {attack_type} vs {target}")
         else:
-            self.attack_failures.append(entry)
             await self._persist_to_graph("attack_failure", entry)
 
             # Registrar por qué falló
@@ -409,20 +423,28 @@ class MemoryManager:
         
         Crítico para graceful shutdown: asegura que todas las operaciones
         pendientes se persisten antes de salir.
+        
+        🔒 THREAD-SAFE: Operación atomic con snapshots del buffer
         """
-        if not self._audit_buffer:
-            self.logger.info("📝 Buffer de auditoría vacío, nada que flush")
-            return
-
-        self.logger.info(f"💾 Flushing {len(self._audit_buffer)} entradas de auditoría...")
+        # 🔒 CRITICAL SECTION: Copiar y limpiar buffer de forma atomic
+        async with self._buffer_lock:
+            if not self._audit_buffer:
+                self.logger.info("📝 Buffer de auditoría vacío, nada que flush")
+                return
+            
+            # Hacer copia del buffer para evitar que escrituras concurrentes lo modifiquen
+            entries_to_persist = self._audit_buffer.copy()
+            self._audit_buffer.clear()
+        
+        # Persistir FUERA del lock para no bloquear otras operaciones
+        self.logger.info(f"💾 Flushing {len(entries_to_persist)} entradas de auditoría...")
 
         try:
-            # Persistir todas las entradas en buffer
-            for entry in self._audit_buffer:
+            for entry in entries_to_persist:
                 await self._persist_audit_entry(entry)
 
-            self.logger.info(f"✓ {len(self._audit_buffer)} entradas persistidas")
-            self._audit_buffer.clear()
+            self.logger.info(f"✓ {len(entries_to_persist)} entradas persistidas")
+
 
         except Exception as e:
             self.logger.error(f"✗ Error en flush_audit_buffer: {e}")
