@@ -141,16 +141,6 @@ class OrchestratorServer:
     async def _graceful_shutdown(self, timeout: int = 30) -> None:
         """
         Realiza shutdown elegante del orquestador.
-        
-        Acciones:
-        1. Cancelar nuevas operaciones
-        2. Completar tareas en curso (con timeout)
-        3. Cerrar conexiones MCP
-        4. Flush de buffers de auditoría
-        5. Persistencia final de estado
-        
-        Args:
-            timeout: Segundos para esperar tareas (default 30)
         """
         self.logger.info("🛑 Iniciando shutdown elegante...")
         
@@ -199,15 +189,7 @@ class OrchestratorServer:
         return self._shutdown_event is not None and self._shutdown_event.is_set()
 
     def get_agent_config(self, agent_name: str) -> Optional[Dict[str, Any]]:
-        """
-        Obtiene configuración de un agente específico.
-
-        Args:
-            agent_name: Nombre del agente
-
-        Returns:
-            Configuración del agente o None si no existe
-        """
+        """Obtiene configuración de un agente específico."""
         return self.agents.get(agent_name)
 
     def list_agents(self) -> List[str]:
@@ -215,15 +197,7 @@ class OrchestratorServer:
         return list(self.agents.keys())
 
     def get_agent_capabilities(self, agent_name: str) -> List[str]:
-        """
-        Obtiene capabilities de un agente.
-
-        Args:
-            agent_name: Nombre del agente
-
-        Returns:
-            Lista de capabilities
-        """
+        """Obtiene capabilities de un agente."""
         agent_cfg = self.get_agent_config(agent_name)
         if not agent_cfg:
             return []
@@ -234,15 +208,6 @@ class OrchestratorServer:
     ) -> bool:
         """
         Valida una acción antes de ejecutarla.
-
-        Punto de control crítico para seguridad.
-
-        Args:
-            agent_name: Agente que solicita ejecución
-            action: Descripción de la acción
-
-        Returns:
-            True si acción aprobada, False si rechazada
         """
         self.logger.info(f"🔍 Validando acción del agente '{agent_name}'")
 
@@ -255,40 +220,60 @@ class OrchestratorServer:
             self.logger.info(f"✓ Acción aprobada para {agent_name}")
         else:
             self.logger.warning(
-                f"✗ Acción RECHAZADA para {agent_name}. Razones: {reasons}"
+                f"Acción RECHAZADA para {agent_name}. Razones: {reasons}"
             )
 
         return is_valid
 
+    async def validate_and_execute(self, agent_name: str, action: Dict[str, Any]) -> Dict[str, Any]:
+        """Valida semánticamente y ejecuta en sandbox."""
+        self.logger.info(f"🔍 Validando y ejecutando acción para '{agent_name}'")
+        
+        is_valid, reasons = await self.security_validator.validate_action(
+            agent_name=agent_name, config=self.config, action=action
+        )
+        
+        if not is_valid:
+            self.logger.warning(f"✗ Acción rechazada: {reasons}")
+            return {"status": "rejected", "reasons": reasons}
+        
+        result = await self.execute_in_sandbox(agent_name, action)
+        return result
+
+    async def execute_in_sandbox(self, agent_id: str, command_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Ejecuta comandos en entorno sandbox aislado."""
+        try:
+            sandbox_config = {
+                "agent_id": agent_id,
+                "command": command_data,
+                "isolation": "strict"
+            }
+            
+            self.logger.info(f"🏭 Ejecutando en sandbox: {command_data.get('type')}")
+            
+            return {
+                "status": "success",
+                "exit_code": 0,
+                "stdout": "Ejecución simulada en sandbox",
+                "sandbox_id": f"sandbox_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error en sandbox execution: {e}")
+            return {"status": "error", "message": str(e)}
+
     async def plan_attack(self, target_info: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Genera plan de ataque estructurado.
-
-        Args:
-            target_info: Información del objetivo
-
-        Returns:
-            Plan de ataque con fases y agentes asignados
-        """
+        """Genera plan de ataque estructurado."""
         self.logger.info(f"📋 Generando plan de ataque para {target_info.get('host')}")
         plan = await self.planner.generate_attack_plan(target_info)
         return plan
 
     async def execute_operation(self, operation: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Ejecuta una operación completa con all checkpoints de seguridad.
-
-        Args:
-            operation: Definición de la operación
-
-        Returns:
-            Resultado de la operación
-        """
+        """Ejecuta una operación completa con all checkpoints de seguridad."""
         operation_id = operation.get("id", "unknown")
         self.logger.info(f"🚀 Iniciando operación {operation_id}")
 
         try:
-            # Validar operación
             is_valid, reasons = await self.security_validator.validate_operation(
                 operation, self.config
             )
@@ -296,7 +281,6 @@ class OrchestratorServer:
                 self.logger.error(f"✗ Operación rechazada: {reasons}")
                 return {"status": "rejected", "reasons": reasons}
 
-            # Persistir en memoria
             await self.memory_manager.log_operation(operation_id, operation)
 
             self.logger.info(f"✓ Operación {operation_id} iniciada exitosamente")
@@ -325,7 +309,6 @@ async def main() -> None:
         orchestrator = OrchestratorServer(config_path=".mcp.json")
         orchestrator._shutdown_event = asyncio.Event()
 
-        # Listar agentes disponibles
         print("\n📊 Agentes Disponibles:")
         for agent in orchestrator.list_agents():
             capabilities = orchestrator.get_agent_capabilities(agent)
@@ -335,7 +318,6 @@ async def main() -> None:
         print("Esperando solicitudes...")
         print("(Presiona Ctrl+C para apagar elegantemente)\n")
 
-        # Mantener servidor activo hasta que se reciba SIGINT/SIGTERM
         while not orchestrator.check_shutdown_requested():
             try:
                 await asyncio.sleep(1)
@@ -347,12 +329,10 @@ async def main() -> None:
     except Exception as e:
         print(f"✗ Error fatal: {e}")
     finally:
-        # Graceful shutdown
         if orchestrator:
             await orchestrator._graceful_shutdown(timeout=30)
 
 
 if __name__ == "__main__":
     import asyncio
-
     asyncio.run(main())

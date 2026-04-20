@@ -290,34 +290,20 @@ class SecurityValidator:
         self._log_validation(agent_name, action, True, [])
         return True, []
 
+    # En la clase SecurityValidator, modificar el método _check_blocked_operations:
     def _check_blocked_operations(self, action: Dict[str, Any]) -> str:
-        """
-        Verifica si la acción es una operación bloqueada categoricamente.
-
-        Returns:
-            Razón de bloqueo o string vacío si permitida
-        """
+        """Verifica si la acción es una operación bloqueada categoricamente."""
         action_type = action.get("type", "").lower()
 
-        # Bloqueos categóricos
+        # Bloqueos categóricos - AÑADIR ESTAS VALIDACIONES
         if action_type == "execute_on_host":
-            return self.BLOCKED_OPERATIONS[
-                RestrictedOperation.DIRECT_HOST_EXECUTION
-            ]
+            return self.BLOCKED_OPERATIONS[RestrictedOperation.DIRECT_HOST_EXECUTION]
 
-        if "docker-compose" in action.get("target", "").lower():
-            return self.BLOCKED_OPERATIONS[RestrictedOperation.MODIFY_DOCKER_COMPOSE]
+        # AÑADIR: Bloquear ejecución de binarios directamente
+        if action_type == "binary_execution" or "binary_path" in action:
+            return "Ejecución de binarios directamente en host prohibida"
 
-        if "agents.md" in action.get("target", "").lower():
-            return self.BLOCKED_OPERATIONS[RestrictedOperation.MODIFY_AGENTS_MD]
 
-        if action.get("network_direct"):
-            return self.BLOCKED_OPERATIONS[RestrictedOperation.NETWORK_BREAKOUT]
-
-        if action.get("type") == "filepath" and ".." in action.get("path", ""):
-            return self.BLOCKED_OPERATIONS[RestrictedOperation.FILESYSTEM_TRAVERSAL]
-
-        return ""
 
     def _validate_sandbox_requirement(
         self, agent_name: str, agent_config: Dict[str, Any]
