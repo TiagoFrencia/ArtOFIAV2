@@ -17,7 +17,7 @@ y desactiva el contenedor si se detectan desviaciones.
 """
 
 import logging
-from typing import Dict, List, Callable, Optional, Any
+from typing import Dict, List, Callable, Optional, Any, Coroutine
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime, timedelta
@@ -80,13 +80,13 @@ class eBPFMonitor:
     (BPF Compiler Collection). Por ahora, simula monitoreo.
     """
     
-    def __init__(self, container_id: str, baseline: SecurityBaseline = None):
+    def __init__(self, container_id: str, baseline: SecurityBaseline | None = None) -> None:
         self.container_id = container_id
         self.baseline = baseline or SecurityBaseline()
         self.enabled = True
-        self.events = []
-        self.violations = []
-        self.violation_handlers: Dict[SyscallCategory, Callable] = {}
+        self.events: list[SyscallEvent] = []
+        self.violations: list[Dict[str, Any]] = []
+        self.violation_handlers: Dict[SyscallCategory, Callable[[SyscallEvent], Coroutine[Any, Any, None]]] = {}
         
         # Cargar reglas de seguridad
         self._initialize_security_rules()

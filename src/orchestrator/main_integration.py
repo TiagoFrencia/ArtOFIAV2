@@ -30,7 +30,7 @@ Flujo completo End-to-End documentado en este archivo.
 
 import asyncio
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, cast
 from datetime import datetime
 from pathlib import Path
 from dataclasses import dataclass
@@ -47,13 +47,13 @@ class InitializationResult:
     """Resultado de inicialización del sistema"""
     success: bool
     errors: List[str]
-    component_status: Dict[str, bool] = None
+    component_status: Dict[str, bool] | None = None
     
-    def __bool__(self):
+    def __bool__(self) -> bool:
         """Permite usar result como boolean: if result:"""
         return self.success
     
-    def __str__(self):
+    def __str__(self) -> str:
         if self.success:
             return "✓ System initialized successfully"
         return f"✗ Initialization failed: {'; '.join(self.errors)}"
@@ -73,10 +73,10 @@ class IntegratedArtOfIA:
     STAGE_TIMEOUT = 300.0  # 5 minutos por stage
     OPERATION_TIMEOUT = 1200.0  # 20 minutos para operación completa
     
-    def __init__(self, config_path: str = ".mcp.json"):
+    def __init__(self, config_path: str = ".mcp.json") -> None:
         self.orchestrator = OrchestratorServer(config_path)
-        self.backend_integration: BackendIntegration = None
-        self.operation_history = []
+        self.backend_integration: BackendIntegration | None = None
+        self.operation_history: list[Dict[str, Any]] = []
     
     async def initialize(self) -> InitializationResult:
         """
@@ -126,13 +126,17 @@ class IntegratedArtOfIA:
                 logger.info("✓ Backend Integration initialized")
                 component_status["backend_integration"] = True
                 
+        except asyncio.TimeoutError:
+            logger.error(f"Backend integration initialization timeout after {self.STAGE_TIMEOUT}s")
+            errors.append("Backend Integration: initialization timeout")
+            component_status["backend_integration"] = False
         except Exception as e:
-            logger.error(f"✗ Backend Integration error: {e}")
+            logger.error(f"✗ Backend Integration error: {e}", exc_info=True)
             errors.append(f"Backend Integration: {str(e)}")
             component_status["backend_integration"] = False
         
         # 3. Validar servicios críticos (opcional pero recomendado)
-        critical_services = []
+        critical_services: list[str] = []
         try:
             # Placeholder: Chequear servicios críticos
             # In production, implementar chequeos para:
@@ -175,7 +179,7 @@ class IntegratedArtOfIA:
         logger.info(f"STARTING RED TEAM OPERATION: {target.get('name', 'unknown')}")
         logger.info("=" * 70)
         
-        operation_log = {
+        operation_log: Dict[str, Any] = {
             "target": target,
             "timestamp": datetime.utcnow().isoformat(),
             "start_time": datetime.utcnow(),
@@ -263,8 +267,15 @@ class IntegratedArtOfIA:
             self.operation_history.append(operation_log)
             return operation_log
         
+        except asyncio.TimeoutError as e:
+            logger.error(f"Operation timeout after {self.OPERATION_TIMEOUT}s: {e}", exc_info=True)
+            operation_log["result"] = "timeout"
+            operation_log["error"] = "Operation exceeded maximum duration"
+        except KeyboardInterrupt:
+            logger.warning("Operation interrupted by user")
+            operation_log["result"] = "interrupted"
         except Exception as e:
-            logger.error(f"Operation failed with exception: {e}")
+            logger.error(f"Operation failed with exception: {e}", exc_info=True)
             operation_log["result"] = "error"
             operation_log["error"] = str(e)
             self.operation_history.append(operation_log)
@@ -276,6 +287,8 @@ class IntegratedArtOfIA:
                 duration = (datetime.utcnow() - operation_log["start_time"]).total_seconds()
                 operation_log["duration_seconds"] = duration
                 logger.info(f"Operation took {duration:.2f} seconds")
+            self.operation_history.append(operation_log)
+            return operation_log
     
     async def _stage_reconnaissance(self, target: Dict[str, Any]) -> Dict[str, Any]:
         """Etapa 1: Reconocimiento"""
@@ -296,7 +309,7 @@ class IntegratedArtOfIA:
             "vulnerabilities": ["sql_injection", "idor", "broken_auth"],
         }
         
-        logger.info(f"  ✓ Found {len(recon_findings['endpoints'])} endpoints")
+        logger.info(f"  ✓ Found {len(cast(List[Any], recon_findings['endpoints']))} endpoints")
         logger.info(f"  ✓ Detected vulnerabilities: {recon_findings['vulnerabilities']}")
         
         return recon_findings
@@ -320,7 +333,7 @@ class IntegratedArtOfIA:
         - estimated_success_rate: 0.0-1.0
         """
         
-        response = await self.backend_integration.generate_with_fallback(prompt)
+        response = await self.backend_integration.generate_with_fallback(prompt) if self.backend_integration else {"status": "error"}
         
         if response.get("status") == "success":
             logger.info(f"  ✓ AI analysis complete (Model: {response.get('model')})")
@@ -360,7 +373,7 @@ print(response.text[:200])
             code=exploit_code,
             language="python",
             exploit_name="sql_injection",
-        )
+        ) if self.backend_integration else {"status": "error"}
         
         if result.get("status") == "success":
             logger.info(f"  ✓ Exploit executed successfully (exit_code: {result.get('exit_code')})")
@@ -381,7 +394,7 @@ print(response.text[:200])
         
         logger.info("→ Recording learning episode...")
         
-        if self.backend_integration.rl_engine:
+        if self.backend_integration and self.backend_integration.rl_engine:
             summary = await self.backend_integration.rl_engine.get_learning_summary()
             logger.info(f"  ✓ RL Engine Summary:")
             logger.info(f"    - Total episodes: {summary.get('total_episodes')}")
@@ -429,7 +442,7 @@ print(response.text[:200])
         print("\n" + "=" * 70 + "\n")
 
 
-async def main():
+async def main() -> None:
     """
     Punto de entrada principal.
     

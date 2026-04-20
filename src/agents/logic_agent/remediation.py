@@ -89,7 +89,7 @@ class RemediationAgent:
             },
         }
     
-    async def generate_patch(self, request: PatchRequest) -> Dict[str, Any]:
+    async def generate_patch(self, request: PatchRequest) -> Dict[str, Any] | None:
         """
         Generar patch automático para vulnerabilidad.
         """
@@ -174,7 +174,7 @@ class RemediationAgent:
             "repo": repo,
         }
     
-    def _get_patch_template(self, vuln_type: str) -> Optional[Dict]:
+    def _get_patch_template(self, vuln_type: str) -> Dict[str, Any] | None:
         """Obtener plantilla de patch para tipo de vulnerabilidad"""
         return self.patch_templates.get(vuln_type.lower())
     

@@ -14,7 +14,7 @@ Estrategia:
 
 import logging
 import asyncio
-from typing import Dict, List, Optional, Any, Literal
+from typing import Dict, List, Optional, Any, Literal, cast
 from dataclasses import dataclass
 from enum import Enum
 import time
@@ -77,7 +77,7 @@ class ProviderManager:
     - Censorship detection
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.providers: Dict[ModelType, Any] = {}
         self.fallback_chain = [
             ModelType.OPENAI_GPT4,
@@ -86,8 +86,8 @@ class ProviderManager:
             ModelType.OLLAMA_LOCAL,  # Local fallback sin censura
         ]
         self.metrics: Dict[ModelType, ProviderMetrics] = {}
-        self.request_history = []
-        self.preference_cache = {}
+        self.request_history: list[Dict[str, Any]] = []
+        self.preference_cache: dict[str, Any] = {}
     
     async def initialize(self, configs: Dict[ModelType, ProviderConfig]) -> bool:
         """
@@ -99,21 +99,22 @@ class ProviderManager:
         for model_type, config in configs.items():
             try:
                 # Importar client específico
+                client: Any = None
                 if model_type == ModelType.OPENAI_GPT4:
                     from .openai_client import OpenAIClient
-                    client = OpenAIClient(config)
+                    client = OpenAIClient(cast(Dict[str, Any], config))
                 elif model_type == ModelType.ANTHROPIC_CLAUDE:
                     from .anthropic_client import AnthropicClient
-                    client = AnthropicClient(config)
+                    client = AnthropicClient(cast(Dict[str, Any], config))
                 elif model_type == ModelType.OLLAMA_LOCAL:
                     from .ollama_client import OllamaClient
-                    client = OllamaClient(config)
+                    client = OllamaClient(cast(Dict[str, Any], config))
                 else:
                     logger.warning(f"Unknown model type: {model_type}")
                     continue
                 
                 # Test connection
-                if await client.health_check():
+                if client and await client.health_check():
                     self.providers[model_type] = client
                     self.metrics[model_type] = ProviderMetrics(model_type=model_type)
                     logger.info(f"Provider initialized: {model_type}")

@@ -31,8 +31,8 @@ class AuthAnalyzer:
     - Caminos de escalamiento de privilegios
     """
     
-    def __init__(self):
-        self.auth_mechanisms = {
+    def __init__(self) -> None:
+        self.auth_mechanisms: Dict[str, Any] = {
             "jwt": self._analyze_jwt,
             "oauth2": self._analyze_oauth2,
             "api_key": self._analyze_api_key,
@@ -40,7 +40,7 @@ class AuthAnalyzer:
             "mfa": self._analyze_mfa,
         }
         
-        self.analysis_history = []
+        self.analysis_history: list[Dict[str, Any]] = []
     
     async def analyze_auth_mechanism(self, mechanism_type: str, 
                                     endpoints: List[Dict[str, Any]],
@@ -65,7 +65,7 @@ class AuthAnalyzer:
         return result
     
     async def _analyze_jwt(self, endpoints: List[Dict[str, Any]], 
-                          findings: Dict[str, Any]) -> Optional[Dict]:
+                          findings: Dict[str, Any]) -> Dict[str, Any] | None:
         """Analizar vulnerabilidades JWT"""
         
         vulnerabilities = []
@@ -100,7 +100,7 @@ class AuthAnalyzer:
         return None
     
     async def _analyze_oauth2(self, endpoints: List[Dict[str, Any]],
-                             findings: Dict[str, Any]) -> Optional[Dict]:
+                             findings: Dict[str, Any]) -> Dict[str, Any] | None:
         """Analizar vulnerabilidades OAuth2"""
         
         vulnerabilities = []
@@ -136,7 +136,7 @@ class AuthAnalyzer:
         return None
     
     async def _analyze_api_key(self, endpoints: List[Dict[str, Any]],
-                              findings: Dict[str, Any]) -> Optional[Dict]:
+                              findings: Dict[str, Any]) -> Dict[str, Any] | None:
         """Analizar vulnerabilidades de API keys"""
         
         vulnerabilities = []
@@ -171,7 +171,7 @@ class AuthAnalyzer:
         return None
     
     async def _analyze_session(self, endpoints: List[Dict[str, Any]],
-                              findings: Dict[str, Any]) -> Optional[Dict]:
+                              findings: Dict[str, Any]) -> Dict[str, Any] | None:
         """Analizar vulnerabilidades de sesión"""
         
         vulnerabilities = []
@@ -214,7 +214,7 @@ class AuthAnalyzer:
         return None
     
     async def _analyze_mfa(self, endpoints: List[Dict[str, Any]],
-                          findings: Dict[str, Any]) -> Optional[Dict]:
+                          findings: Dict[str, Any]) -> Dict[str, Any] | None:
         """Analizar vulnerabilidades en MFA"""
         
         vulnerabilities = []

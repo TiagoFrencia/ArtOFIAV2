@@ -45,9 +45,9 @@ class ReportGenerator:
     - JSON para integración con SIEM
     """
     
-    def __init__(self):
-        self.report_id = None
-        self.generated_at = None
+    def __init__(self) -> None:
+        self.report_id: str | None = None
+        self.generated_at: datetime | None = None
     
     async def generate_executive_report(self, vulnerabilities: List[Dict[str, Any]],
                                        target_url: str) -> str:
@@ -152,7 +152,7 @@ class ReportGenerator:
 ## {target_url}
 
 **Report ID:** {self.report_id}  
-**Generated:** {self.generated_at.strftime('%Y-%m-%d %H:%M:%S')}
+**Generated:** {self.generated_at.strftime('%Y-%m-%d %H:%M:%S') if self.generated_at else 'N/A'}
 
 ---
 
@@ -250,24 +250,24 @@ class ReportGenerator:
             for v in vulnerabilities
         )
         overall_risk = min(10, total_score / max(len(vulnerabilities), 1))
-        stats['overall_risk'] = round(overall_risk, 1)
+        stats['overall_risk'] = int(round(overall_risk, 1))
         
         return stats
     
-    def _estimate_financial_impact(self, stats: Dict) -> int:
+    def _estimate_financial_impact(self, stats: Dict[str, Any]) -> int:
         """Estimar impacto financiero de vulnerabilidades"""
         
         # Modelo simplista: critical=$100k, high=$20k, medium=$5k, low=$1k
         impact = (
-            stats['critical'] * 100000 +
-            stats['high'] * 20000 +
-            stats['medium'] * 5000 +
-            stats['low'] * 1000
+            int(stats['critical']) * 100000 +
+            int(stats['high']) * 20000 +
+            int(stats['medium']) * 5000 +
+            int(stats['low']) * 1000
         )
         
         return impact
     
-    def _calculate_priority_order(self, vulnerabilities: List[Dict[str, Any]]) -> List[Dict]:
+    def _calculate_priority_order(self, vulnerabilities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Calcular orden de prioridad de remediación"""
         
         # Ordenar por severidad y complejidad de fix
@@ -288,7 +288,7 @@ class ReportGenerator:
         
         return priority_order
     
-    def _estimate_fix_time(self, vuln: Dict) -> str:
+    def _estimate_fix_time(self, vuln: Dict[str, Any]) -> str:
         """Estimar tiempo de remediación"""
         
         severity = vuln.get('severity', 'medium')

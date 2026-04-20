@@ -15,7 +15,14 @@ from datetime import datetime
 
 
 class ErrorSeverity(Enum):
-    """Severity levels for exceptions"""
+    """Severity levels for exceptions.
+    
+    Attributes:
+        INFO: Informational, no action required
+        WARNING: Warning, may need review  
+        ERROR: Error, operation failed
+        CRITICAL: Critical, immediate action required
+    """
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"
@@ -24,14 +31,30 @@ class ErrorSeverity(Enum):
 
 @dataclass
 class ErrorContext:
-    """Rich context information for exceptions"""
+    """Rich context information for exceptions.
+    
+    Captures error metadata including timing, component, operation,
+    and additional contextual details for error tracking.
+    
+    Attributes:
+        timestamp: When the error occurred (datetime)
+        component: System component (e.g., 'recon_agent', 'docker_sandbox')
+        operation: Operation being performed (e.g., 'initialize', 'execute')
+        severity: Error severity level (ErrorSeverity enum)
+        details: Dictionary with additional context (user_id, target_id, etc.)
+    """
     timestamp: datetime
-    component: str  # e.g., "recon_agent", "docker_sandbox", "memory_manager"
-    operation: str  # e.g., "initialize", "execute_attack", "create_node"
+    component: str
+    operation: str
     severity: ErrorSeverity
-    details: Dict[str, Any]  # Additional context (user_id, target_id, etc.)
+    details: Dict[str, Any]
     
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize error context to dictionary.
+        
+        Returns:
+            Dictionary with all context fields in JSON-serializable format.
+        """
         return {
             "timestamp": self.timestamp.isoformat(),
             "component": self.component,
@@ -46,7 +69,25 @@ class ErrorContext:
 # ============================================================
 
 class ArtOfIAException(Exception):
-    """Base exception for all ArtOfIA errors"""
+    """Base exception for all ArtOfIA errors.
+    
+    Provides rich error context with severity levels, component tracking,
+    timestamps, and detailed error information for comprehensive error handling
+    and debugging.
+    
+    Args:
+        message: Human-readable error message
+        component: System component where error occurred (default: 'unknown')
+        operation: Operation being performed (default: 'unknown')
+        severity: Error severity level (default: ERROR)
+        details: Optional dictionary with additional context
+        cause: Optional original exception that caused this error
+        
+    Attributes:
+        message: The error message
+        context: ErrorContext with timing and component information
+        cause: Original exception if any
+    """
     
     def __init__(
         self,
@@ -56,7 +97,7 @@ class ArtOfIAException(Exception):
         severity: ErrorSeverity = ErrorSeverity.ERROR,
         details: Optional[Dict[str, Any]] = None,
         cause: Optional[Exception] = None
-    ):
+    ) -> None:
         self.message = message
         self.context = ErrorContext(
             timestamp=datetime.now(),
@@ -70,14 +111,22 @@ class ArtOfIAException(Exception):
         super().__init__(self._format_message())
     
     def _format_message(self) -> str:
-        """Format error message with context"""
+        """Format error message with context.
+        
+        Returns:
+            Formatted string with severity, component, operation, and message.
+        """
         return (
             f"[{self.context.severity.value.upper()}] {self.context.component}."
             f"{self.context.operation}: {self.message}"
         )
     
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize exception to dict"""
+        """Serialize exception to dictionary.
+        
+        Returns:
+            Dictionary with exception type, message, context, and cause.
+        """
         return {
             "error": self.__class__.__name__,
             "message": self.message,
@@ -91,38 +140,67 @@ class ArtOfIAException(Exception):
 # ============================================================
 
 class SecurityException(ArtOfIAException):
-    """Base for security-related errors"""
+    """Base exception for security-related errors.
     
-    def __init__(self, message: str, **kwargs):
+    Used for violations of security policies, authorization failures,
+    and other security-critical error conditions. Automatically sets
+    severity to CRITICAL.
+    
+    Args:
+        message: Description of the security violation
+        **kwargs: Additional keyword arguments passed to parent class
+    """
+    
+    def __init__(self, message: str, **kwargs: Any) -> None:
         kwargs.setdefault("severity", ErrorSeverity.CRITICAL)
         super().__init__(message, **kwargs)
 
 
 class ValidationException(SecurityException):
-    """Input validation failed"""
+    """Raised when input validation fails.
+    
+    Indicates that provided input does not meet validation requirements
+    (type mismatch, format error, etc.).
+    """
     pass
 
 
 class AuthorizationException(SecurityException):
-    """Operation not authorized"""
+    """Raised when operation is not authorized.
+    
+    Indicates that the user/agent lacks permissions to perform operation.
+    """
     pass
 
 
 class SandboxException(SecurityException):
-    """Docker sandbox security violation"""
+    """Raised when Docker sandbox security is violated.
+    
+    Indicates an attempt to break sandbox isolation or bypass restrictions.
+    """
     pass
 
 
 class CommandExecutionException(SecurityException):
-    """Attempt to execute forbidden command"""
+    """Raised when execution of a forbidden command is attempted.
+    
+    Indicates that a command violates sandbox security policy
+    and execution was blocked.
+    
+    Args:
+        command: The command that was blocked
+        reason: Why the command is forbidden
+        component: System component (default: 'supervisor')
+        **kwargs: Additional arguments
+    """
     
     def __init__(
         self,
         command: str,
         reason: str,
         component: str = "supervisor",
-        **kwargs
-    ):
+        **kwargs: Any
+    ) -> None:
         message = f"Forbidden command blocked: {command} ({reason})"
         kwargs.setdefault("details", {})["command"] = command
         kwargs["details"]["reason"] = reason
@@ -130,14 +208,23 @@ class CommandExecutionException(SecurityException):
 
 
 class InjectionException(SecurityException):
-    """SQL/Cypher/Command injection detected"""
+    """Raised when SQL/Cypher/Command injection is detected.
+    
+    Indicates that potentially malicious input attempting injection
+    attack was detected and blocked.
+    
+    Args:
+        injection_type: Type of injection (SQL, Cypher, Command, etc.)
+        target: The target that was attacked
+        **kwargs: Additional arguments
+    """
     
     def __init__(
         self,
-        injection_type: str,  # "sql", "cypher", "command"
+        injection_type: str,
         target: str,
-        **kwargs
-    ):
+        **kwargs: Any
+    ) -> None:
         message = f"{injection_type.upper()} injection detected in: {target}"
         kwargs.setdefault("details", {})["injection_type"] = injection_type
         kwargs["details"]["target"] = target
@@ -145,15 +232,25 @@ class InjectionException(SecurityException):
 
 
 class RateLimitException(SecurityException):
-    """Rate limit exceeded"""
+    """Raised when rate limit is exceeded.
+    
+    Indicates that a resource has been accessed too many times within
+    a time window, triggering rate limit protection.
+    
+    Args:
+        resource: The resource being rate-limited
+        limit: Maximum requests allowed
+        window: Time window in seconds
+        **kwargs: Additional arguments
+    """
     
     def __init__(
         self,
         resource: str,
         limit: int,
-        window: int,  # seconds
-        **kwargs
-    ):
+        window: int,
+        **kwargs: Any
+    ) -> None:
         message = f"Rate limit exceeded: {limit} requests per {window}s for {resource}"
         kwargs.setdefault("details", {})["resource"] = resource
         kwargs["details"]["limit"] = limit
@@ -166,34 +263,58 @@ class RateLimitException(SecurityException):
 # ============================================================
 
 class AgentException(ArtOfIAException):
-    """Base for agent-related errors"""
+    """Base exception for agent-related errors.
     
-    def __init__(self, message: str, agent_name: str = "unknown", **kwargs):
+    Used for errors that occur during agent initialization, execution,
+    or lifecycle management.
+    
+    Args:
+        message: Error message
+        agent_name: Name of the agent (default: 'unknown')
+        **kwargs: Additional arguments
+    """
+    
+    def __init__(self, message: str, agent_name: str = "unknown", **kwargs: Any) -> None:
         kwargs.setdefault("component", agent_name)
-        supersetter = kwargs.pop("severity", ErrorSeverity.ERROR)
-        super().__init__(message, severity=supersetter, **kwargs)
+        severity: ErrorSeverity = kwargs.pop("severity", ErrorSeverity.ERROR)
+        super().__init__(message, severity=severity, **kwargs)
 
 
 class AgentInitializationException(AgentException):
-    """Agent failed to initialize"""
+    """Raised when agent fails to initialize.
+    
+    Indicates that agent setup or configuration failed.
+    """
     pass
 
 
 class AgentExecutionException(AgentException):
-    """Agent execution failed"""
+    """Raised when agent execution fails.
+    
+    Indicates that an error occurred during agent operation.
+    """
     pass
 
 
 class AgentTimeoutException(AgentException):
-    """Agent operation timed out"""
+    """Raised when agent operation times out.
+    
+    Indicates that agent did not complete within time limit.
+    
+    Args:
+        agent_name: Name of the agent
+        operation: Operation that timed out
+        timeout_seconds: Timeout duration in seconds
+        **kwargs: Additional arguments
+    """
     
     def __init__(
         self,
         agent_name: str,
         operation: str,
         timeout_seconds: float,
-        **kwargs
-    ):
+        **kwargs: Any
+    ) -> None:
         message = f"Agent {agent_name} timeout on {operation} (>{timeout_seconds}s)"
         kwargs.setdefault("details", {})["timeout_seconds"] = timeout_seconds
         kwargs["details"]["agent_name"] = agent_name
@@ -203,7 +324,7 @@ class AgentTimeoutException(AgentException):
 class AgentDependencyException(AgentException):
     """Agent dependency not available"""
     
-    def __init__(self, agent_name: str, missing_dependency: str, **kwargs):
+    def __init__(self, agent_name: str, missing_dependency: str, **kwargs: Any) -> None:
         message = f"Missing dependency for {agent_name}: {missing_dependency}"
         kwargs.setdefault("details", {})["missing_dependency"] = missing_dependency
         super().__init__(message, agent_name=agent_name, **kwargs)
@@ -216,7 +337,7 @@ class AgentDependencyException(AgentException):
 class StorageException(ArtOfIAException):
     """Base for storage-related errors"""
     
-    def __init__(self, message: str, **kwargs):
+    def __init__(self, message: str, **kwargs: Any) -> None:
         kwargs.setdefault("component", "storage")
         super().__init__(message, **kwargs)
 
@@ -236,11 +357,11 @@ class PersistenceException(StorageException):
     
     def __init__(
         self,
-        operation: str,  # "insert", "update", "delete"
-        resource_type: str,  # "node", "relation", "audit_log"
+        operation: str,
+        resource_type: str,
         reason: str,
-        **kwargs
-    ):
+        **kwargs: Any
+    ) -> None:
         message = (
             f"Failed to {operation} {resource_type}: {reason}"
         )
@@ -266,7 +387,7 @@ class ResourceException(ArtOfIAException):
 class OutOfMemoryException(ResourceException):
     """System out of memory"""
     
-    def __init__(self, required_bytes: int, available_bytes: int, **kwargs):
+    def __init__(self, required_bytes: int, available_bytes: int, **kwargs: Any) -> None:
         message = (
             f"Insufficient memory: required {required_bytes} bytes, "
             f"available {available_bytes} bytes"
@@ -280,7 +401,7 @@ class OutOfMemoryException(ResourceException):
 class ResourceExhaustedException(ResourceException):
     """Resource exhausted (connections, file descriptors, etc.)"""
     
-    def __init__(self, resource_type: str, limit: int, **kwargs):
+    def __init__(self, resource_type: str, limit: int, **kwargs: Any) -> None:
         message = f"Resource exhausted: {resource_type} (limit: {limit})"
         kwargs.setdefault("details", {})["resource_type"] = resource_type
         kwargs["details"]["limit"] = limit
@@ -294,7 +415,7 @@ class ResourceExhaustedException(ResourceException):
 class ConfigurationException(ArtOfIAException):
     """Configuration error"""
     
-    def __init__(self, message: str, config_key: str = "", **kwargs):
+    def __init__(self, message: str, config_key: str = "", **kwargs: Any) -> None:
         if config_key:
             message = f"Configuration error [{config_key}]: {message}"
         kwargs.setdefault("component", "config")
@@ -313,7 +434,7 @@ class MissingConfigurationException(ConfigurationException):
 class OrchestrationException(ArtOfIAException):
     """Base for orchestration errors"""
     
-    def __init__(self, message: str, **kwargs):
+    def __init__(self, message: str, **kwargs: Any) -> None:
         kwargs.setdefault("component", "orchestrator")
         super().__init__(message, **kwargs)
 
@@ -326,8 +447,8 @@ class StageFailureException(OrchestrationException):
         stage_name: str,
         reason: str,
         stage_number: int = 0,
-        **kwargs
-    ):
+        **kwargs: Any
+    ) -> None:
         message = f"Stage failure [{stage_name}]: {reason}"
         kwargs.setdefault("details", {})["stage_name"] = stage_name
         kwargs["details"]["stage_number"] = stage_number
@@ -337,7 +458,7 @@ class StageFailureException(OrchestrationException):
 class OperationCanceledException(OrchestrationException):
     """Operation was cancelled"""
     
-    def __init__(self, operation_id: str, reason: str = "", **kwargs):
+    def __init__(self, operation_id: str, reason: str = "", **kwargs: Any) -> None:
         message = f"Operation cancelled: {operation_id}"
         if reason:
             message += f" ({reason})"
@@ -356,8 +477,8 @@ class ExternalServiceException(ArtOfIAException):
         self,
         service_name: str,
         status_code: Optional[int] = None,
-        **kwargs
-    ):
+        **kwargs: Any
+    ) -> None:
         message = f"External service error: {service_name}"
         if status_code:
             message += f" (HTTP {status_code})"
@@ -370,7 +491,7 @@ class ExternalServiceException(ArtOfIAException):
 class LLMException(ExternalServiceException):
     """LLM provider error"""
     
-    def __init__(self, reason: str, model: str = "", **kwargs):
+    def __init__(self, reason: str, model: str = "", **kwargs: Any) -> None:
         kwargs.setdefault("details", {})["model"] = model
         super().__init__("llm_provider", **kwargs)
         self.message = f"LLM error ({model}): {reason}"
@@ -383,8 +504,8 @@ class WebServiceException(ExternalServiceException):
         self,
         target_url: str,
         status_code: int,
-        **kwargs
-    ):
+        **kwargs: Any
+    ) -> None:
         message = f"Target service returned {status_code}: {target_url}"
         kwargs.setdefault("details", {})["target_url"] = target_url
         kwargs["details"]["status_code"] = status_code
@@ -435,6 +556,6 @@ EXCEPTION_REGISTRY = {
 }
 
 
-def get_exception_class(exception_type: str):
+def get_exception_class(exception_type: str) -> type[ArtOfIAException]:
     """Look up exception class by type string"""
     return EXCEPTION_REGISTRY.get(exception_type, ArtOfIAException)

@@ -10,7 +10,7 @@ import logging
 from src.orchestrator.main_integration import IntegratedArtOfIA
 
 
-async def quick_start_example():
+async def quick_start_example() -> None:
     """
     Ejemplo de inicio rápido del sistema completamente integrado.
     """

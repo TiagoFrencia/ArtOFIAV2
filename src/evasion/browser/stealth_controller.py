@@ -111,9 +111,11 @@ class StealthController:
         
         try:
             from playwright.async_api import async_playwright
-        except ImportError:
-            self.logger.error("⚠️ Playwright no instalado. Instalar: pip install playwright")
-            return
+        except ImportError as e:
+            raise ImportError(
+                "playwright package is required for SteathController. "
+                "Install it with: pip install playwright"
+            ) from e
         
         async with async_playwright() as p:
             # Launch with stealth options
@@ -229,7 +231,7 @@ class StealthController:
             self._detection_count += 1
             return False
 
-    async def execute_action(self, action_type: str, selector: str, **kwargs) -> Dict[str, Any]:
+    async def execute_action(self, action_type: str, selector: str, **kwargs: Any) -> Dict[str, Any]:
         """Ejecuta acción (click, type, scroll) con timing humano."""
         self.logger.info(f"⚙️ Ejecutando acción: {action_type} en {selector}")
         
@@ -315,7 +317,7 @@ class StealthController:
             self.logger.warning(f"⚠️ Timeout esperando {condition_type}")
             return False
 
-    async def intercept_requests(self, callback: Callable) -> None:
+    async def intercept_requests(self, callback: Callable[[Any], Any]) -> None:
         """Intercepta y modifica requests antes de enviarlos."""
         self.logger.info("🔍 Configurando interceptor de requests...")
         

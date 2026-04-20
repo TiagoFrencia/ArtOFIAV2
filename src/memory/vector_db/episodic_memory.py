@@ -74,7 +74,7 @@ class EpisodicMemory:
 class EpisodicMemoryStore:
     """Gestor de memoria episódica."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         """Inicializa almacén de memoria episódica."""
         self.logger = logging.getLogger(__name__)
         
@@ -85,7 +85,7 @@ class EpisodicMemoryStore:
         self.playbooks: Dict[str, Dict[str, Any]] = {}
         
         # Caché de similitudes
-        self.similarity_cache: Dict[str, List[Tuple[str, float]]] = {}
+        self.similarity_cache: Dict[str, List[Tuple[EpisodicMemory, float]]] = {}
         
         # Estadísticas
         self.stats = {

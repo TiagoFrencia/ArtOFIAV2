@@ -19,10 +19,10 @@ Arquitectura:
 __version__ = "1.0.0"
 __author__ = "ArtOfIA Security Team"
 
-from src.agents.recon_agent.server import ReconAgentServer
-from src.agents.recon_agent.js_analyzer import JavaScriptAnalyzer
-from src.agents.recon_agent.graphql_mapper import GraphQLMapper
-from src.agents.recon_agent.network_tools import NetworkTools
+from .server import ReconAgentServer
+from .js_analyzer import JavaScriptAnalyzer
+from .graphql_mapper import GraphQLMapper
+from .network_tools import NetworkTools
 
 __all__ = [
     "ReconAgentServer",

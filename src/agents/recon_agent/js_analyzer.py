@@ -25,7 +25,7 @@ class JavaScriptAnalyzer:
         self.logger = logging.getLogger(__name__)
         
         # Patrones para detectar APIs y secretos
-        self.patterns = {
+        self.patterns: dict[str, str] = {
             "api_endpoints": r'(?:https?://|/)[^\s"\'<>]+(?:/api/|/graphql|/rest)',
             "aws_keys": r'AKIA[0-9A-Z]{16}',
             "jwt_tokens": r'eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+',
@@ -36,7 +36,7 @@ class JavaScriptAnalyzer:
         }
         
         # Palabras clave indicativas de vulnerabilidades
-        self.vulnerability_keywords = [
+        self.vulnerability_keywords: list[str] = [
             "eval", "innerHTML", "innerText", "dangerouslySetInnerHTML",
             "onclick", "onerror", "onload", "execScript",
             "atob", "JSON.parse", "URLSearchParams"
@@ -59,7 +59,7 @@ class JavaScriptAnalyzer:
         """
         self.logger.info(f"🔍 Extrayendo archivos JavaScript de {url}")
 
-        result = {
+        result: Dict[str, Any] = {
             "target": url,
             "timestamp": datetime.now().isoformat(),
             "files_found": [],
@@ -68,7 +68,7 @@ class JavaScriptAnalyzer:
 
         # En producción: usar requests/playwright para descargar HTML
         # Aquí: simular extracción
-        sim_files = [
+        sim_files: list[str] = [
             f"{url}/assets/main.js",
             f"{url}/assets/api.chunk.js",
             f"{url}/assets/vendor.min.js",
@@ -99,7 +99,7 @@ class JavaScriptAnalyzer:
         """
         self.logger.info(f"🔨 Desofuscando código ({method})")
 
-        result = {
+        result: Dict[str, Any] = {
             "method": method,
             "original_size": len(code),
             "deobfuscated": "",
@@ -125,7 +125,7 @@ class JavaScriptAnalyzer:
         return result
 
     async def extract_shadow_apis(
-        self, code: str, target_types: List[str] = None
+        self, code: str, target_types: Optional[list[str]] = None
     ) -> Dict[str, Any]:
         """
         ⭐ Extrae "Shadow APIs" - APIs ocultas, endpoints, credenciales.
@@ -142,7 +142,7 @@ class JavaScriptAnalyzer:
         if target_types is None:
             target_types = ["api_keys", "endpoints", "credentials", "comments"]
 
-        result = {
+        result: Dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "api_keys": [],
             "endpoints": [],
@@ -153,28 +153,28 @@ class JavaScriptAnalyzer:
 
         # Extraer endpoints
         if "endpoints" in target_types:
-            endpoints = self._extract_endpoints(code)
+            endpoints: list[dict[str, str]] = self._extract_endpoints(code)
             result["endpoints"] = endpoints
             if endpoints:
                 result["severity"] = "high"
 
         # Extraer credenciales
         if "credentials" in target_types:
-            creds = self._extract_credentials(code)
+            creds: list[dict[str, str]] = self._extract_credentials(code)
             result["credentials"] = creds
             if creds:
                 result["severity"] = "critical"
 
         # Extraer API keys
         if "api_keys" in target_types:
-            keys = self._extract_api_keys(code)
+            keys: list[dict[str, str]] = self._extract_api_keys(code)
             result["api_keys"] = keys
             if keys:
                 result["severity"] = "critical"
 
         # Extraer comentarios sensibles
         if "comments" in target_types:
-            comments = self._extract_comments(code)
+            comments: list[str] = self._extract_comments(code)
             result["comments"] = comments
             if any("security" in c.lower() for c in comments):
                 result["severity"] = "high"
@@ -198,7 +198,7 @@ class JavaScriptAnalyzer:
         """
         self.logger.info("🔎 Analizando patrones vulnerables...")
 
-        result = {
+        result: Dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "vulnerabilities": [],
             "risk_level": "low",
@@ -209,10 +209,10 @@ class JavaScriptAnalyzer:
             }
         }
 
-        code_to_analyze = html + "\n" + javascript
+        code_to_analyze: str = html + "\n" + javascript
 
         # XSS sinks
-        xss_patterns = [
+        xss_patterns: list[str] = [
             r"\.innerHTML\s*=",
             r"\.innerText\s*=",
             r"document\.write",
@@ -271,9 +271,9 @@ class JavaScriptAnalyzer:
         result = self._pretty_print(result)
         return result
 
-    def _extract_endpoints(self, code: str) -> List[Dict[str, str]]:
+    def _extract_endpoints(self, code: str) -> list[dict[str, str]]:
         """Extrae endpoints de API de JavaScript."""
-        endpoints = []
+        endpoints: list[dict[str, str]] = []
         matches = re.finditer(self.patterns["api_endpoints"], code)
 
         for match in matches:
@@ -286,9 +286,9 @@ class JavaScriptAnalyzer:
 
         return list({e["endpoint"]: e for e in endpoints}.values())  # Deduplicar
 
-    def _extract_credentials(self, code: str) -> List[Dict[str, str]]:
+    def _extract_credentials(self, code: str) -> list[dict[str, str]]:
         """Extrae credenciales de JavaScript."""
-        credentials = []
+        credentials: list[dict[str, str]] = []
         matches = re.finditer(self.patterns["credentials"], code)
 
         for match in matches:
@@ -300,9 +300,9 @@ class JavaScriptAnalyzer:
 
         return credentials
 
-    def _extract_api_keys(self, code: str) -> List[Dict[str, str]]:
+    def _extract_api_keys(self, code: str) -> list[dict[str, str]]:
         """Extrae API keys (AWS, etc.)."""
-        keys = []
+        keys: list[dict[str, str]] = []
         matches = re.finditer(self.patterns["aws_keys"], code)
 
         for match in matches:
@@ -314,9 +314,9 @@ class JavaScriptAnalyzer:
 
         return keys
 
-    def _extract_comments(self, code: str) -> List[str]:
+    def _extract_comments(self, code: str) -> list[str]:
         """Extrae comentarios sensibles."""
-        comments = []
+        comments: list[str] = []
         matches = re.finditer(self.patterns["comments"], code)
 
         for match in matches:

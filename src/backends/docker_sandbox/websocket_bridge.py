@@ -72,13 +72,13 @@ class IOResponse:
     stderr: str = ""
     exit_code: int = 0
     execution_time_ms: int = 0
-    warnings: list = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 class PayloadValidator:
     """Validar payloads antes de inyectarlos en contenedor"""
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.dangerous_patterns = [
             r"\$\(",  # Command substitution
             r"`",  # Backticks
@@ -147,12 +147,12 @@ class WebSocketBridge:
     Por ahora, es un simulador con queue async.
     """
     
-    def __init__(self, sandbox_manager: Any):
+    def __init__(self, sandbox_manager: Any) -> None:
         self.sandbox_manager = sandbox_manager
         self.validator = PayloadValidator()
-        self.request_queue = asyncio.Queue()
+        self.request_queue: asyncio.Queue[IORequest] = asyncio.Queue()
         self.response_map: Dict[str, IOResponse] = {}
-        self.communication_log = []
+        self.communication_log: list[Dict[str, Any]] = []
     
     async def execute_in_container(self, request: IORequest) -> IOResponse:
         """
@@ -254,6 +254,6 @@ class WebSocketBridge:
         self.communication_log.append(log_entry)
         logger.info(f"[AUDIT] {request.request_id}: {status}")
     
-    def get_communication_log(self) -> list:
+    def get_communication_log(self) -> list[Dict[str, Any]]:
         """Retornar log de comunicación (para compliance)"""
         return self.communication_log.copy()

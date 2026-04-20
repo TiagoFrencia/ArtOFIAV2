@@ -39,7 +39,7 @@ class ExecutionRequest:
     payload: Dict[str, Any]
     timeout_seconds: int = 300
     max_retries: int = 3
-    metadata: Dict[str, Any] = None
+    metadata: Dict[str, Any] | None = None
 
 
 @dataclass
@@ -50,8 +50,8 @@ class ExecutionResponse:
     output: str = ""
     error_message: str = ""
     execution_time_ms: int = 0
-    resource_usage: Dict[str, Any] = None
-    security_violations: List[str] = None
+    resource_usage: Dict[str, Any] | None = None
+    security_violations: List[str] | None = None
 
 
 class BaseBackend(ABC):
@@ -65,7 +65,7 @@ class BaseBackend(ABC):
         self.backend_type = backend_type
         self.config = config
         self.is_initialized = False
-        self.audit_log = []
+        self.audit_log: list[Dict[str, Any]] = []
     
     @abstractmethod
     async def initialize(self) -> bool:

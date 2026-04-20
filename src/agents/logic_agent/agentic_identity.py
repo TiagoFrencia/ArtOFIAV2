@@ -73,8 +73,8 @@ class AgenticJWTAnalyzer:
     - "scopes": Qué puede hacer
     """
     
-    def __init__(self):
-        self.known_signing_keys = {}
+    def __init__(self) -> None:
+        self.known_signing_keys: Dict[str, str] = {}
     
     async def decode_agentic_jwt(self, token: str) -> Optional[AgenticIdentity]:
         """
@@ -184,9 +184,9 @@ class AgenticIdentitySpoofing:
     3. Usar token delegado de agente legítimo
     """
     
-    def __init__(self, supervisor_validation_required: bool = True):
+    def __init__(self, supervisor_validation_required: bool = True) -> None:
         self.supervisor_validation_required = supervisor_validation_required
-        self.spoofing_attempts = []
+        self.spoofing_attempts: list[Dict[str, Any]] = []
     
     async def forge_agentic_jwt(self, target_identity: AgenticIdentity,
                                signing_key: Optional[str] = None) -> Dict[str, Any]:

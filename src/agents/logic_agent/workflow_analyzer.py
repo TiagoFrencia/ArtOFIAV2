@@ -56,7 +56,7 @@ class WorkflowAnalyzer:
     - Manipulación de estado
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.common_workflows = {
             "login_flow": [
                 "request_credentials",
@@ -95,7 +95,7 @@ class WorkflowAnalyzer:
             ],
         }
         
-        self.analysis_history = []
+        self.analysis_history: list[Dict[str, Any]] = []
     
     async def analyze_workflow(self, workflow_name: str, endpoints: List[Dict[str, Any]],
                               findings: Dict[str, Any], framework: Optional[str] = None) -> Optional[Any]:

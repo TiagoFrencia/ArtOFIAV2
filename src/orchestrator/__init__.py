@@ -8,10 +8,10 @@ garantizando validación semántica, aislamiento en sandbox y auditoría central
 __version__ = "1.0.0"
 __author__ = "ArtOfIA Security Team"
 
-from src.orchestrator.server import OrchestratorServer
-from src.orchestrator.supervisor import SecurityValidator
-from src.orchestrator.planner import AttackPlanner
-from src.orchestrator.memory_manager import MemoryManager
+from .server import OrchestratorServer
+from .supervisor import SecurityValidator
+from .planner import AttackPlanner
+from .memory_manager import MemoryManager
 
 __all__ = [
     "OrchestratorServer",

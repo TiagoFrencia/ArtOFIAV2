@@ -74,8 +74,8 @@ class TacticEvaluation:
         self.total_attempts = 0
         self.successful_attempts = 0
         self.detected_attempts = 0
-        self.avg_duration_ms = 0
-        self.parameters_tried = []
+        self.avg_duration_ms: float = 0.0
+        self.parameters_tried: list[Dict[str, Any]] = []
     
     @property
     def success_rate(self) -> float:
@@ -251,7 +251,7 @@ class SelfEvolvingEngine:
         if not recent_episodes:
             return {"status": "insufficient_data"}
         
-        suggestions = {}
+        suggestions: dict[str, Any] = {}
         
         # Analizar timing
         successful = [ep for ep in recent_episodes if ep.outcome == LearningOutcome.SUCCESS]

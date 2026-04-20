@@ -12,6 +12,7 @@ Responsabilidades:
 import logging
 import hashlib
 import json
+import random
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from dataclasses import dataclass
@@ -34,27 +35,27 @@ class TLSConfig:
     browser_profile: BrowserTLSProfile = BrowserTLSProfile.CHROME_120
     
     # Versiones de protocolo soportadas
-    tls_versions: List[str] = None  # ["TLS 1.2", "TLS 1.3"]
+    tls_versions: List[str] | None = None  # ["TLS 1.2", "TLS 1.3"]
     
     # Cipher suites (orden importante)
-    cipher_suites: List[str] = None
+    cipher_suites: List[str] | None = None
     
     # Supported groups (curvas elípticas)
-    supported_groups: List[str] = None
+    supported_groups: List[str] | None = None
     
     # Signature algorithms
-    signature_algorithms: List[str] = None
+    signature_algorithms: List[str] | None = None
     
     # Extensiones TLS
-    extensions: Dict[str, Any] = None
+    extensions: Dict[str, Any] | None = None
     
     # ALPN protocols
-    alpn_protocols: List[str] = None
+    alpn_protocols: List[str] | None = None
     
     # Server Name Indication (SNI)
     sni_enabled: bool = True
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Inicializa valores por defecto."""
         if self.tls_versions is None:
             self.tls_versions = ["TLS 1.3", "TLS 1.2"]
@@ -73,7 +74,7 @@ class TLSConfig:
 class TLSFingerprint:
     """Huella digital de TLS (JA3/JA4)."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         """Inicializa generador de fingerprints."""
         self.logger = logging.getLogger(__name__)
     
@@ -248,12 +249,24 @@ class TLSSpoofing:
 
     def _apply_browser_profile(self, profile: BrowserTLSProfile) -> None:
         """Aplica configuración de navegador real."""
-        browser_config = self.BROWSER_PROFILES[profile]
+        browser_config: Dict[str, Any] = self.BROWSER_PROFILES[profile]
         
         self.config.tls_versions = browser_config.get("tls_versions", [])
-        self.config.cipher_suites = browser_config.get("cipher_suites", [])
-        self.config.supported_groups = browser_config.get("supported_groups", [])
-        self.config.signature_algorithms = browser_config.get("signature_algorithms", [])
+        cipher_list: Any = browser_config.get("cipher_suites", [])
+        if isinstance(cipher_list, list):
+            self.config.cipher_suites = cipher_list
+        else:
+            self.config.cipher_suites = []
+        groups_list: Any = browser_config.get("supported_groups", [])
+        if isinstance(groups_list, list):
+            self.config.supported_groups = groups_list
+        else:
+            self.config.supported_groups = []
+        sig_algs: Any = browser_config.get("signature_algorithms", [])
+        if isinstance(sig_algs, list):
+            self.config.signature_algorithms = sig_algs
+        else:
+            self.config.signature_algorithms = []
         self.config.extensions = browser_config.get("extensions", {})
         self.config.alpn_protocols = browser_config.get("alpn_protocols", [])
         
@@ -261,12 +274,17 @@ class TLSSpoofing:
 
     def get_ja3_fingerprint(self) -> str:
         """Genera fingerprint JA3 del perfil actual."""
+        cipher_suites_int: List[int] = [c if isinstance(c, int) else 0 for c in (self.config.cipher_suites or [])]
+        extensions_int: List[int] = [e if isinstance(e, int) else 0 for e in list((self.config.extensions or {}).keys())]
+        supported_groups_int: List[int] = [g if isinstance(g, int) else 0 for g in (self.config.supported_groups or [])]
+        signature_algorithms_int: List[int] = [s if isinstance(s, int) else 0 for s in (self.config.signature_algorithms or [])]
+        
         ja3_string = self.fingerprint.generate_ja3_string(
             tls_version="771",  # TLS 1.2/1.3 negotiation
-            cipher_suites=self.config.cipher_suites or [],
-            extensions=list(self.config.extensions.keys()) if self.config.extensions else [],
-            supported_groups=self.config.supported_groups or [],
-            signature_algorithms=self.config.signature_algorithms or []
+            cipher_suites=cipher_suites_int,
+            extensions=extensions_int,
+            supported_groups=supported_groups_int,
+            signature_algorithms=signature_algorithms_int
         )
         
         ja3_hash = self.fingerprint.ja3_hash(ja3_string)

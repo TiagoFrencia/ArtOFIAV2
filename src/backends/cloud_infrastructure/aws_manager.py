@@ -66,7 +66,7 @@ class AWSManager:
         self.access_key = access_key
         self.secret_key = secret_key
         self.active_instances: Dict[str, Dict[str, Any]] = {}
-        self.operation_log = []
+        self.operation_log: list[Dict[str, Any]] = []
         
         # Inicializar cliente boto3 (en producción)
         # import boto3

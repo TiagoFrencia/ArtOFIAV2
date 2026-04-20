@@ -13,14 +13,16 @@ Este módulo es el "pegante" entre infraestructura y agentes.
 
 import logging
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, cast
 from dataclasses import dataclass
 from datetime import datetime
+from collections import deque  # ✅ Para bounded operation log
 
 from src.backends.docker_sandbox import SandboxManager, SandboxConfig, WebSocketBridge, IORequest, IORequestType
 from src.backends.llm_providers import ProviderManager, ModelType, ProviderConfig, FallbackEngine
 from src.backends.cloud_infrastructure import AWSManager, InstanceConfig
 from src.intelligence import SelfEvolvingEngine, AttackEpisode, LearningOutcome
+from src.core.input_validator import CodeValidator, FilenameValidator, ValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +65,7 @@ class BackendIntegration:
     4. AWSManager (infraestructura en nube)
     """
     
-    def __init__(self, config: BackendIntegrationConfig = None):
+    def __init__(self, config: BackendIntegrationConfig | None = None) -> None:
         self.config = config or BackendIntegrationConfig()
         
         # Backends
@@ -75,7 +77,10 @@ class BackendIntegration:
         self.websocket_bridge: Optional[WebSocketBridge] = None
         
         self.initialized = False
-        self.operation_log = []
+        
+        # ✅ FIXEO MEMORY LEAK: Usar deque bounded (últimas 500 operaciones)
+        # Historial completo persiste en BD
+        self.operation_log: deque[Dict[str, Any]] = deque(maxlen=500)
     
     async def initialize(self) -> bool:
         """
@@ -135,7 +140,7 @@ class BackendIntegration:
                 logger.info("✓ SelfEvolvingEngine initialized")
             
             # 4. AWS (opcional)
-            if self.config.cloud_enabled and self.config.aws_access_key:
+            if self.config.cloud_enabled and self.config.aws_access_key and self.config.aws_secret_key:
                 self.aws_manager = AWSManager(
                     self.config.aws_access_key,
                     self.config.aws_secret_key,
@@ -156,15 +161,40 @@ class BackendIntegration:
         Ejecutar exploit en sandbox con comunicación segura.
         
         Pipeline:
-        1. Crear contenedor
-        2. Inyectar código vía WebSocketBridge
-        3. Monitorear ejecución
-        4. Limpiar
-        5. Registrar en RL engine
+        1. ✅ VALIDAR inputs (código, lenguaje, nombre)
+        2. Crear contenedor
+        3. Inyectar código vía WebSocketBridge
+        4. Monitorear ejecución
+        5. Limpiar
+        6. Registrar en RL engine
         """
         
         if not self.sandbox_manager:
             return {"status": "error", "error": "Sandbox not available"}
+        
+        # ✅ SECURITY: Validar TODOS los inputs ANTES de cualquier operación
+        try:
+            # Validar código
+            code_validator = CodeValidator()
+            code_validation = code_validator.validate(code)
+            if not code_validation.valid:
+                error_msg = "; ".join([str(e) for e in code_validation.errors])
+                logger.warning(f"✗ Code validation failed: {error_msg}")
+                return {"status": "error", "error": f"Code validation failed: {error_msg}"}
+            
+            # Validar nombre de exploit
+            name_validator = FilenameValidator()
+            name_validation = name_validator.validate(exploit_name)
+            if not name_validation.valid:
+                error_msg = "; ".join([str(e) for e in name_validation.errors])
+                logger.warning(f"✗ Exploit name validation failed: {error_msg}")
+                return {"status": "error", "error": f"Exploit name validation failed: {error_msg}"}
+            
+            logger.info(f"✓ All inputs validated successfully for exploit: {exploit_name}")
+        
+        except Exception as e:
+            logger.error(f"✗ Critical error during input validation: {e}")
+            return {"status": "error", "error": f"Validation error: {str(e)}"}
         
         try:
             # 1. Crear contenedor
@@ -172,6 +202,9 @@ class BackendIntegration:
             logger.info(f"Container created: {container_id}")
             
             # 2. Ejecutar vía bridge
+            if not self.websocket_bridge:
+                return {"status": "error", "error": "WebSocket bridge not initialized"}
+            
             request = IORequest(
                 request_id=f"exploit_{exploit_name}_{container_id}",
                 request_type=IORequestType.EXECUTE_CODE,
@@ -252,7 +285,7 @@ class BackendIntegration:
             return {"status": "error", "error": str(e)}
     
     async def get_recommended_techniques(self, attack_type: str, target_os: str,
-                                        edr_type: str) -> list:
+                                        edr_type: str) -> list[str]:
         """
         Obtener técnicas recomendadas basadas en aprendizaje pasado.
         """
@@ -260,7 +293,8 @@ class BackendIntegration:
         if not self.rl_engine:
             return []
         
-        return await self.rl_engine.get_recommended_techniques(attack_type, target_os, edr_type)
+        techniques_data = await self.rl_engine.get_recommended_techniques(attack_type, target_os, edr_type)
+        return [t.get("name", "") for t in techniques_data if isinstance(t, dict)]
     
     async def create_external_infrastructure(self, attack_type: str) -> Optional[Dict[str, Any]]:
         """
@@ -277,7 +311,7 @@ class BackendIntegration:
             
             if instance["status"] == "success":
                 await self._log_operation("create_aws_instance", instance["instance"])
-                return instance["instance"]
+                return cast(Dict[str, Any], instance["instance"])
             
             return None
         

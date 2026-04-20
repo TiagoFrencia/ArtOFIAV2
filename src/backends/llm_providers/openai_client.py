@@ -69,7 +69,8 @@ class OpenAIClient:
                         error = data.get("error", {})
                         raise Exception(f"OpenAI API error: {error.get('message', 'Unknown')}")
                     
-                    return data["choices"][0]["message"]["content"]
+                    content: str = data["choices"][0]["message"]["content"]
+                    return content
         
         except Exception as e:
             logger.error(f"OpenAI generation failed: {e}")

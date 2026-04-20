@@ -321,7 +321,7 @@ class CypherBuilder:
 # EXAMPLE USAGE
 # ============================================================
 
-def example_usage():
+def example_usage() -> None:
     """Example of how to use query optimization"""
     
     # Example 1: Pagination

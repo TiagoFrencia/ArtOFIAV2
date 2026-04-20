@@ -14,7 +14,7 @@ Responsabilidades:
 - Garantizar: Sin acceso host, Sin escalada de privilegios, Sin persistencia
 """
 
-import docker
+import docker  # type: ignore[import-untyped]
 import logging
 import asyncio
 import json
@@ -35,9 +35,9 @@ class SandboxConfig:
     memory_limits: str = "512m"  # 512MB RAM
     timeout_seconds: int = 300  # 5 minutes max
     readonly_rootfs: bool = True
-    cap_drop: list = None  # Capabilities a eliminar
+    cap_drop: list[str] | None = None  # Capabilities a eliminar
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.cap_drop is None:
             self.cap_drop = ["ALL"]
 
@@ -62,11 +62,11 @@ class SandboxManager:
     3. Cleanup → Destruye contenedor + logs
     """
     
-    def __init__(self, config: SandboxConfig = None):
+    def __init__(self, config: SandboxConfig | None = None) -> None:
         self.config = config or SandboxConfig()
-        self.docker_client = None
-        self.active_containers = {}
-        self.execution_logs = []
+        self.docker_client: Any = None
+        self.active_containers: dict[str, Any] = {}
+        self.execution_logs: list[Dict[str, Any]] = []
         
         # Cargar profiles de seguridad
         self.seccomp_profile = self._load_seccomp_profile()
@@ -78,8 +78,11 @@ class SandboxManager:
             self.docker_client.ping()
             logger.info("Docker connection established")
             return True
+        except docker.errors.DockerException as e:
+            logger.error(f"Docker connection failed: {e}", exc_info=True)
+            return False
         except Exception as e:
-            logger.error(f"Failed to connect to Docker: {e}")
+            logger.error(f"Unexpected error during Docker initialization: {e}", exc_info=True)
             return False
     
     def _load_seccomp_profile(self) -> Dict[str, Any]:
@@ -87,7 +90,8 @@ class SandboxManager:
         profile_path = Path(__file__).parent / "security_profiles" / "seccomp_profile.json"
         try:
             with open(profile_path) as f:
-                return json.load(f)
+                profile: Dict[str, Any] = json.load(f)
+                return profile
         except FileNotFoundError:
             logger.warning("seccomp_profile.json not found, using defaults")
             return self._get_default_seccomp_profile()
@@ -121,10 +125,11 @@ class SandboxManager:
         container_id = str(uuid.uuid4())[:12]
         
         try:
-            # Preparar volumes (ephemeral, only tmpfs)
+            # Preparar volumes (ephemeral, read-only con tmpfs para work directory)
+            # ← SECURITY: Read-only prevents symlink escape exploits
             volumes = {
-                "/tmp": {"bind": "/tmp", "mode": "rw"},
-                "/dev/shm": {"bind": "/dev/shm", "mode": "rw"},
+                "/tmp": {"bind": "/tmp", "mode": "ro"},  # Read-only, prevents /tmp poisoning
+                "/dev/shm": {"bind": "/dev/shm", "mode": "ro"},  # Read-only, prevents shm exploits
             }
             
             # Crear contenedor con restricciones
@@ -142,7 +147,10 @@ class SandboxManager:
                 # Seguridad: sin privilegios
                 user="sandboxuser:sandboxuser",
                 cap_drop=self.config.cap_drop,
-                security_opt=["no-new-privileges:true"],
+                security_opt=[
+                    "no-new-privileges:true",
+                    f"seccomp={json.dumps(self.seccomp_profile)}"
+                ],
                 read_only=self.config.readonly_rootfs,
                 
                 # Aislamiento de red (sin acceso a host)
@@ -154,9 +162,6 @@ class SandboxManager:
                 # Volumes limitados
                 volumes=volumes,
                 tmpfs={"/tmp": "size=50M,noexec,nodev,nosuid"},
-                
-                # Seccomp
-                security_opt=[f"seccomp={json.dumps(self.seccomp_profile)}"],
                 
                 # PID namespace aislado
                 pid_mode="private",

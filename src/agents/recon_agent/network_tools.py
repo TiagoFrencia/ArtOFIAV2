@@ -24,7 +24,7 @@ class NetworkTools:
         self.logger = logging.getLogger(__name__)
 
         # Wordlist común para DNS brute-force
-        self.dns_wordlist = [
+        self.dns_wordlist: list[str] = [
             "www", "mail", "ftp", "localhost", "webmail", "smtp",
             "api", "admin", "test", "dev", "staging", "prod",
             "cdn", "backup", "db", "database", "server",
@@ -35,7 +35,7 @@ class NetworkTools:
         ]
 
         # Security headers conocidos
-        self.security_headers = {
+        self.security_headers: dict[str, str] = {
             "Strict-Transport-Security": "HSTS",
             "Content-Security-Policy": "CSP",
             "X-Frame-Options": "Clickjacking protection",
@@ -48,7 +48,7 @@ class NetworkTools:
         self.logger.info("✓ Network Tools inicializadas")
 
     async def dns_enumeration(
-        self, domain: str, wordlist: Optional[List[str]] = None
+        self, domain: str, wordlist: Optional[list[str]] = None
     ) -> Dict[str, Any]:
         """
         Enumeración de DNS - AXFR y brute-force de subdomios.
@@ -64,8 +64,10 @@ class NetworkTools:
 
         if wordlist is None:
             wordlist = self.dns_wordlist
+        else:
+            wordlist = wordlist
 
-        result = {
+        result: Dict[str, Any] = {
             "domain": domain,
             "timestamp": datetime.now().isoformat(),
             "subdomains_found": [],
@@ -75,7 +77,7 @@ class NetworkTools:
 
         # AXFR attempt (simulado)
         result["enumeration_methods"].append("AXFR_attempt")
-        simulated_axfr = [
+        simulated_axfr: list[str] = [
             f"ns1.{domain}",
             f"mail.{domain}",
             f"api.{domain}"
@@ -89,13 +91,14 @@ class NetworkTools:
         result["enumeration_methods"].append("wordlist_brute_force")
         for word in wordlist[:10]:  # Limitar para demo
             subdomain = f"{word}.{domain}"
+            services: list[str] = self._infer_services(word)
             result["subdomains_found"].append({
                 "subdomain": subdomain,
                 "method": "brute_force",
                 "ip": "simulated",
-                "services": self._infer_services(word)
+                "services": services
             })
-            result["potential_services"].extend(self._infer_services(word))
+            result["potential_services"].extend(services)
 
         self.logger.info(f"✓ {len(result['subdomains_found'])} subdominos encontrados")
         return result
@@ -115,7 +118,7 @@ class NetworkTools:
         """
         self.logger.info(f"📋 Analizando headers HTTP de {url}")
 
-        result = {
+        result: Dict[str, Any] = {
             "url": url,
             "timestamp": datetime.now().isoformat(),
             "headers_present": [],
@@ -125,7 +128,7 @@ class NetworkTools:
         }
 
         # Headers presentes (simulado)
-        present_headers = {
+        present_headers: dict[str, str] = {
             "Content-Security-Policy": "default-src 'self'; script-src 'self' cdn.example.com",
             "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
             "X-Frame-Options": "DENY"
@@ -140,7 +143,7 @@ class NetworkTools:
             })
 
         # Headers faltantes
-        missing = ["X-Content-Type-Options", "Referrer-Policy", "Permissions-Policy"]
+        missing: list[str] = ["X-Content-Type-Options", "Referrer-Policy", "Permissions-Policy"]
         result["headers_missing"] = [
             {
                 "header": h,
@@ -179,7 +182,7 @@ class NetworkTools:
         """
         self.logger.info(f"🔌 Escaneando puertos pasivamente para {target} (via {data_source})")
 
-        result = {
+        result: Dict[str, Any] = {
             "target": target,
             "timestamp": datetime.now().isoformat(),
             "data_source": data_source,
@@ -190,7 +193,7 @@ class NetworkTools:
 
         # Puertos simulados según fuente
         if data_source == "shodan":
-            simulated_ports = [
+            simulated_ports: list[dict[str, Any]] = [
                 {"port": 80, "service": "http", "status": "open"},
                 {"port": 443, "service": "https", "status": "open"},
                 {"port": 8080, "service": "http-proxy", "status": "open"},
@@ -235,7 +238,7 @@ class NetworkTools:
         """
         self.logger.info(f"🔐 Analizando certificado TLS para {domain}")
 
-        result = {
+        result: Dict[str, Any] = {
             "domain": domain,
             "timestamp": datetime.now().isoformat(),
             "certificate": {
@@ -305,7 +308,7 @@ class NetworkTools:
         """
         self.logger.info("📝 Extrayendo comentarios sensibles...")
 
-        result = {
+        result: Dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "comments_found": [],
             "security_comments": [],
@@ -314,8 +317,8 @@ class NetworkTools:
         }
 
         # Patrones de comentarios HTML
-        html_comment_pattern = r"<!--(.*?)-->"
-        js_comment_pattern = r"//\s*(.+?)[\n]"
+        html_comment_pattern: str = r"<!--(.*?)-->"
+        js_comment_pattern: str = r"//\s*(.+?)[\n]"
 
         # HTML comments
         html_matches = re.finditer(html_comment_pattern, response_content, re.DOTALL)
@@ -328,17 +331,18 @@ class NetworkTools:
             })
 
             # Identificar comentarios sensibles
-            if any(kw in comment.lower() for kw in ["todo", "fixme", "bug", "security", "hack"]):
+            keywords_list: list[str] = ["todo", "fixme", "bug", "security", "hack"]
+            if any(kw in comment.lower() for kw in keywords_list):
                 result["security_comments"].append({
                     "type": "DEVELOPMENT_NOTE",
-                    "keyword": next(kw for kw in ["todo", "fixme", "bug", "security", "hack"] if kw in comment.lower()),
+                    "keyword": next(kw for kw in keywords_list if kw in comment.lower()),
                     "content": comment[:100]
                 })
 
         # Rutas internas
-        path_pattern = r"(/[a-zA-Z0-9/_\-\.]+)"
-        paths = re.findall(path_pattern, response_content)
-        internal_refs = list(set([p for p in paths if len(p) > 5]))
+        path_pattern: str = r"(/[a-zA-Z0-9/_\-\.]+)"
+        paths: list[str] = re.findall(path_pattern, response_content)
+        internal_refs: list[str] = list(set([p for p in paths if len(p) > 5]))
         result["internal_refs"] = internal_refs[:10]  # Limitar
 
         if result["security_comments"]:
@@ -350,9 +354,9 @@ class NetworkTools:
                         f"{len(result['security_comments'])} sensibles")
         return result
 
-    def _infer_services(self, subdomain_word: str) -> List[str]:
+    def _infer_services(self, subdomain_word: str) -> list[str]:
         """Inferir servicios potenciales basado en nombre."""
-        services_map = {
+        services_map: dict[str, list[str]] = {
             "mail": ["SMTP", "POP3", "IMAP"],
             "ftp": ["FTP"],
             "api": ["REST API", "GraphQL"],

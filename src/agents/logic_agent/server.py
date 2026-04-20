@@ -1,6 +1,6 @@
 """
-Logic Agent - Semantic Analysis Server
-========================================
+Logic Agent - Semantic Analysis Server with DI Pattern
+========================================================
 MCP (Model Context Protocol) server that exposes logical analysis tools.
 
 Responsibilities:
@@ -10,6 +10,12 @@ Responsibilities:
 4. Coordinate with ReconAgent + ExploitAgent
 5. Post-exploitation strategy
 6. Report generation
+
+Hereda de BaseAgent para garantizar:
+- Consistencia con otros agentes
+- Inyección de dependencias
+- Logging estructurado
+- Type safety
 
 Connects to:
 - MemorySystem (Neo4j + PostgreSQL)
@@ -21,11 +27,13 @@ Connects to:
 import asyncio
 import logging
 import json
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, cast
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
+from src.agents.base_agent import BaseAgent
+from src.core.exceptions import ValidationException
 from .workflow_analyzer import WorkflowAnalyzer
 from .auth_analyzer import AuthAnalyzer
 from .post_exploit import PostExploitationPlanner
@@ -53,7 +61,7 @@ class AnalysisRequest:
     endpoints: List[Dict[str, Any]]
     auth_mechanisms: List[str]
     framework: Optional[str] = None
-    discovered_workflows: List[str] = None
+    discovered_workflows: List[str] | None = None
 
 
 @dataclass
@@ -71,9 +79,9 @@ class AnalysisResult:
     details: Dict[str, Any]
 
 
-class LogicAgent:
+class LogicAgent(BaseAgent):
     """
-    Agente de análisis lógico y planificación.
+    Agente de análisis lógico y planificación con DI pattern.
     
     Flujo:
     1. Recibe hallazgos de ReconAgent
@@ -82,12 +90,26 @@ class LogicAgent:
     4. Planifica cadena de ataque
     5. Genera reporte
     6. Coordina post-explotación
+    
+    Hereda de BaseAgent para:
+    - Inyección de configuración centralizada
+    - Logging estructurado y consistente
+    - Type safety
+    - Interfaz común con otros agentes
     """
     
-    def __init__(self, memory_system_ref=None, orchestrator_ref=None):
-        """Inicializar agente lógico con referencias al sistema"""
-        self.memory_system = memory_system_ref
-        self.orchestrator = orchestrator_ref
+    def __init__(self, config: Dict[str, Any]) -> None:
+        """Inicializar agente lógico con inyección de dependencias.
+        
+        Args:
+            config: Configuración desde .mcp.json
+                Esperado: {"name": "logic_agent", "command": "...", "env": {...}}
+        
+        Raises:
+            ValueError: Si configuración es inválida
+        """
+        # Llamar al padre (BaseAgent) para inicializar config y logger
+        super().__init__(config, agent_name="LogicAgent")
         
         # Inicializar módulos especializados
         self.workflow_analyzer = WorkflowAnalyzer()
@@ -95,13 +117,15 @@ class LogicAgent:
         self.post_exploiter = PostExploitationPlanner()
         self.report_generator = ReportGenerator()
         
-        self.analysis_history = []
+        self.analysis_history: list[Dict[str, Any]] = []
         self.stats = {
             "analyses_performed": 0,
             "flaws_identified": 0,
             "successful_chains": 0,
             "avg_confidence": 0.0,
         }
+        
+        self.logger.info("✓ Módulos especializados inicializados")
     
     async def analyze_reconnaissance_findings(self, request: AnalysisRequest) -> List[AnalysisResult]:
         """
@@ -223,7 +247,7 @@ class LogicAgent:
             "timestamp": datetime.now().isoformat(),
         }
         
-        logger.info(f"Exploitation plan created: {len(plan['steps'])} steps")
+        logger.info(f"Exploitation plan created: {len(cast(List[Dict[str, Any]], plan['steps']))} steps")
         
         return plan
     
@@ -272,10 +296,25 @@ class LogicAgent:
         Generar reporte ejecutivo + técnico con hallazgos.
         """
         
+        # Convert AnalysisResult objects to dictionaries for the report generator
+        vulnerabilities: List[Dict[str, Any]] = [
+            {
+                "type": a.analysis_type.value,
+                "description": a.business_impact,
+                "risk_level": a.risk_level,
+                "confidence": a.confidence_score,
+                "affected_endpoints": a.affected_endpoints,
+                "recommendations": a.recommendations,
+            }
+            for a in analyses
+        ]
+        
+        # Get target URL from context (if available) or use generic name
+        target_url = "application"
+        
         report = await self.report_generator.generate_executive_report(
-            analyses=analyses,
-            exploitation_chains=chains,
-            timestamp=datetime.now()
+            vulnerabilities=vulnerabilities,
+            target_url=target_url
         )
         
         return report
@@ -322,13 +361,95 @@ class LogicAgent:
             **self.stats,
             "analysis_history_size": len(self.analysis_history),
         }
+    
+    async def execute(self, target: Any) -> Dict[str, Any]:
+        """Ejecuta análisis lógico en hallazgos de reconocimiento.
+        
+        Args:
+            target: Hallazgos de reconocimiento (AnalysisRequest o dict)
+        
+        Returns:
+            Diccionario con resultados de análisis
+        """
+        if isinstance(target, dict):
+            try:
+                request = AnalysisRequest(**target)
+            except TypeError:
+                raise ValidationException(
+                    f"Invalid analysis request format: {target}"
+                )
+        else:
+            self._validate_target(target, (AnalysisRequest,))
+            request = target
+        
+        self.logger.info(f"Ejecutando análisis lógico para: {request.target_url}")
+        
+        try:
+            # Ejecutar análisis
+            results = await self.analyze_reconnaissance_findings(request)
+            
+            # Compilar resultados
+            execution_result = {
+                "status": "success",
+                "target": request.target_url,
+                "timestamp": datetime.now().isoformat(),
+                "analysis_count": len(results),
+                "analyses": [
+                    {
+                        "type": r.analysis_type,
+                        "confidence": r.confidence,
+                        "severity": r.severity,
+                        "findings": r.findings
+                    }
+                    for r in results
+                ]
+            }
+            
+            self.logger.info(f"✓ Análisis completado: {len(results)} hallazgos")
+            return execution_result
+            
+        except Exception as e:
+            self.logger.error(f"✗ Error durante análisis: {e}")
+            return {
+                "status": "error",
+                "target": request.target_url,
+                "timestamp": datetime.now().isoformat(),
+                "error": str(e)
+            }
+    
+    def can_handle(self, target_type: str) -> bool:
+        """Verifica si este agente puede procesar el tipo de target.
+        
+        Args:
+            target_type: Tipo de target ("analysis", "planning", "logic", etc)
+        
+        Returns:
+            True si puede procesar, False si no
+        """
+        handled_types = {
+            "analysis",
+            "planning",
+            "logic",
+            "workflow",
+            "auth",
+            "post-exploitation",
+            "report"
+        }
+        return target_type.lower() in handled_types
 
 
 # Interfaz de MCP server
-async def create_logic_agent(memory_system_ref=None, orchestrator_ref=None) -> LogicAgent:
-    """Factory para crear LogicAgent con referencias inyectadas"""
-    agent = LogicAgent(memory_system_ref, orchestrator_ref)
-    logger.info("LogicAgent initialized")
+async def create_logic_agent(config: Dict[str, Any]) -> LogicAgent:
+    """Factory para crear LogicAgent con inyección de dependencias.
+    
+    Args:
+        config: Configuración desde .mcp.json
+    
+    Returns:
+        Instancia de LogicAgent inicializada
+    """
+    agent = LogicAgent(config)
+    logger.info("LogicAgent initialized via factory")
     return agent
 
 

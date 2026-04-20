@@ -23,7 +23,7 @@ class GraphQLMapper:
         self.logger = logging.getLogger(__name__)
 
         # Rutas comunes de GraphQL
-        self.common_paths = [
+        self.common_paths: list[str] = [
             "/graphql",
             "/api/graphql",
             "/v1/graphql",
@@ -116,7 +116,7 @@ class GraphQLMapper:
         """
         self.logger.info(f"🔍 Descubriendo endpoints GraphQL en {url}")
 
-        result = {
+        result: Dict[str, Any] = {
             "target": url,
             "timestamp": datetime.now().isoformat(),
             "endpoints_found": [],
@@ -244,7 +244,7 @@ class GraphQLMapper:
         """
         self.logger.info("🔗 Analizando relaciones y riesgos...")
 
-        result = {
+        result: Dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "admin_mutations": [],
             "sensitive_fields": [],

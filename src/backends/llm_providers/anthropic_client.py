@@ -24,13 +24,13 @@ class AnthropicClient:
         try:
             # Intentar un request vacío para validar key
             async with aiohttp.ClientSession() as session:
-                headers = {
+                headers_dict: Dict[str, str | None] = {
                     "x-api-key": self.api_key,
                     "anthropic-version": "2023-06-01",
                 }
                 async with session.get(
                     f"{self.base_url}/models",
-                    headers=headers,
+                    headers={k: v for k, v in headers_dict.items() if v is not None},
                     timeout=aiohttp.ClientTimeout(total=5)
                 ) as resp:
                     return resp.status in [200, 404]  # 404 es OK, significa API respondió
@@ -74,8 +74,10 @@ class AnthropicClient:
                         error_msg = data.get("error", {}).get("message", "Unknown error")
                         raise Exception(f"Anthropic API error: {error_msg}")
                     
-                    return data["content"][0]["text"]
+                    content: str = data["content"][0]["text"]
+                    return content
         
         except Exception as e:
             logger.error(f"Anthropic generation failed: {e}")
             raise
+

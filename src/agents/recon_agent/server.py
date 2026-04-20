@@ -1,36 +1,48 @@
 """
-Recon Agent Server - Punto de entrada del agente MCP.
+Recon Agent Server - Agente de reconocimiento pasivo con DI pattern.
 
 Responsabilidades:
-- Inicializar servidor MCP
+- Inicializar servidor MCP con configuración inyectada
 - Registrar herramientas (tools) disponibles
-- Coordinar módulos especializados
+- Coordinar módulos especializados (JS analyzer, GraphQL mapper)
 - Exponer capabilities al orchestrator
+
+Hereda de BaseAgent para garantizar:
+- Consistencia con otros agentes
+- Inyección de dependencias
+- Logging estructurado
+- Type safety
 """
 
 import logging
-from typing import Dict, Any, List, Callable
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 import json
 from pathlib import Path
 
-from src.agents.recon_agent.js_analyzer import JavaScriptAnalyzer
-from src.agents.recon_agent.graphql_mapper import GraphQLMapper
-from src.agents.recon_agent.network_tools import NetworkTools
+from src.agents.base_agent import BaseAgent
+from src.core.exceptions import ValidationException
+from .js_analyzer import JavaScriptAnalyzer
+from .graphql_mapper import GraphQLMapper
+from .network_tools import NetworkTools
 
 
-class ReconAgentServer:
-    """servidor MCP para el agente de reconocimiento."""
+class ReconAgentServer(BaseAgent):
+    """Agente MCP para el reconocimiento pasivo (DI pattern)."""
 
-    def __init__(self, config_path: str = ".mcp.json") -> None:
+    def __init__(self, config: Dict[str, Any]) -> None:
         """
-        Inicializa el servidor de recon agent.
+        Inicializa ReconAgent con inyección de dependencias.
 
         Args:
-            config_path: Ruta a configuración MCP
+            config: Configuración desde .mcp.json
+                Esperado: {"name": "recon_agent", "command": "...", "env": {...}}
+        
+        Raises:
+            ValueError: Si configuración es inválida
         """
-        self.logger = logging.getLogger(__name__)
-        self.config_path = Path(config_path)
+        # Llamar al padre (BaseAgent) para inicializar config y logger
+        super().__init__(config, agent_name="ReconAgent")
 
         # Inicializar módulos especializados
         self.js_analyzer = JavaScriptAnalyzer()
@@ -43,27 +55,10 @@ class ReconAgentServer:
         # Resultados de reconocimiento
         self.reconnaissance_results: Dict[str, Any] = {}
 
-        self._setup_logging()
         self._register_tools()
 
-        self.logger.info("✓ Recon Agent Server inicializado")
+        self.logger.info("✓ Módulos especializados inicializados")
 
-    def _setup_logging(self) -> None:
-        """Configura logging centralizado."""
-        log_dir = Path("src/memory/knowledge_graph/agents/recon")
-        log_dir.mkdir(parents=True, exist_ok=True)
-
-        log_file = log_dir / f"recon_agent_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            handlers=[
-                logging.FileHandler(log_file),
-                logging.StreamHandler(),
-            ],
-        )
-        self.logger = logging.getLogger(__name__)
 
     def _register_tools(self) -> None:
         """
@@ -73,6 +68,7 @@ class ReconAgentServer:
         puede invocar. Esto mantiene el código limpio y modular.
         """
         self.logger.info("📋 Registrando herramientas...")
+
 
         # ===== JavaScript Analysis Tools =====
         self.tools["extract_javascript_files"] = {
@@ -127,7 +123,7 @@ class ReconAgentServer:
         }
 
         self.tools["introspect_graphql_schema"] = {
-            "function": self.graphql_mapper.introspect_schema,
+            "function": self.graphql_mapper.introspect_graphql_schema,
             "description": "Extrae esquema completo vía introspection query",
             "parameters": {
                 "graphql_url": "URL del endpoint GraphQL",
@@ -137,7 +133,7 @@ class ReconAgentServer:
         }
 
         self.tools["dump_graphql_schema"] = {
-            "function": self.graphql_mapper.dump_schema,
+            "function": self.graphql_mapper.dump_graphql_schema,
             "description": "Vuelca esquema GraphQL a formato JSON/SDL",
             "parameters": {
                 "graphql_url": "URL del endpoint GraphQL",
@@ -147,7 +143,7 @@ class ReconAgentServer:
         }
 
         self.tools["analyze_graphql_relationships"] = {
-            "function": self.graphql_mapper.analyze_relationships,
+            "function": self.graphql_mapper.analyze_graphql_relationships,
             "description": "Analiza relaciones entre objetos y potenciales vulnerabilidades",
             "parameters": {
                 "schema": "Esquema GraphQL extraído"
@@ -293,7 +289,7 @@ class ReconAgentServer:
                 "error": str(e)
             }
 
-    def get_reconnaissance_results(self, target: str = None) -> Dict[str, Any]:
+    def get_reconnaissance_results(self, target: str | None = None) -> Dict[str, Any]:
         """
         Obtiene resultados acumulados de reconocimiento.
 
@@ -304,11 +300,13 @@ class ReconAgentServer:
             Resultados compilados
         """
         if target:
-            return self.reconnaissance_results.get(target, {})
+            result: Dict[str, Any] = self.reconnaissance_results.get(target, {})
+            return result
         return self.reconnaissance_results
 
     def get_capabilities(self) -> Dict[str, Any]:
         """Retorna capabilities del agente."""
+        tools_list: List[Dict[str, Any]] = self.list_available_tools()
         return {
             "agent": "recon_agent",
             "version": "1.0.0",
@@ -321,8 +319,73 @@ class ReconAgentServer:
             ],
             "tools_count": len(self.tools),
             "stealth_mode": True,
-            "tools": self.list_available_tools()
+            "tools": tools_list
         }
+
+    async def execute(self, target: Any) -> Dict[str, Any]:
+        """Ejecuta reconocimiento pasivo en target.
+        
+        Args:
+            target: URL o dominio a reconocer
+        
+        Returns:
+            Diccionario con resultados de reconocimiento
+        """
+        self._validate_target(target, (str,))
+        self.logger.info(f"Ejecutando reconocimiento en: {target}")
+        
+        # Ejecutar análisis iniciales
+        results = {
+            "target": target,
+            "timestamp": datetime.now().isoformat(),
+            "stages": {}
+        }
+        
+        try:
+            # Stage 1: GraphQL discovery
+            graphql_result = await self.invoke_tool(
+                "discover_graphql_endpoints",
+                target_url=target
+            )
+            results["stages"]["graphql"] = graphql_result
+            
+            # Stage 2: Network reconnaissance
+            network_result = await self.invoke_tool(
+                "analyze_http_headers",
+                url=target,
+                detailed=True
+            )
+            results["stages"]["network"] = network_result
+            
+            self.logger.info(f"✓ Reconocimiento completado para {target}")
+            results["status"] = "success"
+            
+        except Exception as e:
+            self.logger.error(f"✗ Error durante reconocimiento: {e}")
+            results["status"] = "error"
+            results["error"] = str(e)
+        
+        return results
+    
+    def can_handle(self, target_type: str) -> bool:
+        """Verifica si este agente puede procesar el tipo de target.
+        
+        Args:
+            target_type: Tipo de target ("api", "web", "graphql", etc)
+        
+        Returns:
+            True si puede procesar, False si no
+        """
+        handled_types = {
+            "api",
+            "web",
+            "graphql",
+            "javascript",
+            "network",
+            "osint",
+            "passive"
+        }
+        return target_type.lower() in handled_types
 
 
 async def main() -> None:

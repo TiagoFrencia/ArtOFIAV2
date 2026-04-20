@@ -327,7 +327,7 @@ class SolverClient:
         """Integración Anti-Captcha para reCAPTCHA v2."""
         self.logger.info("  → Anti-Captcha API v2")
         
-        payload = {
+        payload: Dict[str, Any] = {
             "clientKey": self.api_key,
             "task": {
                 "type": CaptchaType.RECAPTCHA_V2.value,
@@ -337,9 +337,10 @@ class SolverClient:
         }
         
         if proxy:
-            payload["task"]["proxyType"] = proxy.get("type", "http")
-            payload["task"]["proxyAddress"] = proxy.get("address")
-            payload["task"]["proxyPort"] = proxy.get("port")
+            task_dict: Dict[str, Any] = payload["task"]
+            task_dict["proxyType"] = proxy.get("type", "http")
+            task_dict["proxyAddress"] = proxy.get("address")
+            task_dict["proxyPort"] = proxy.get("port")
         
         # En producción: httpx call
         # async with httpx.AsyncClient() as client:

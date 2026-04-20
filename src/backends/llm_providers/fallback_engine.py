@@ -16,8 +16,14 @@ supervisión estricta y con propósitos defensivos.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, TYPE_CHECKING, Union, cast
 from enum import Enum
+from dataclasses import dataclass
+
+if TYPE_CHECKING:
+    from . import ProviderManager
+
+from .provider_manager import ModelType
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +41,12 @@ class FallbackEngine:
     un modelo rechaza o falla un request.
     """
     
-    def __init__(self, provider_manager: "ProviderManager"):
+    def __init__(self, provider_manager: "ProviderManager") -> None:
         self.provider_manager = provider_manager
         self.strategy = FallbackStrategy.CASCADE
         self.rejection_count = 0
         self.total_fallbacks = 0
-        self.fallback_history = []
+        self.fallback_history: list[Dict[str, Any]] = []
     
     async def handle_rejected_request(self, original_prompt: str,
                                      rejected_by_model: str) -> Dict[str, Any]:
@@ -83,11 +89,19 @@ class FallbackEngine:
         Intenta: Anthropic → Gemini → Ollama (local)
         """
         
-        fallback_chain = ["anthropic_claude", "gemini", "ollama_local"]
+        fallback_chain = [
+            ModelType.ANTHROPIC_CLAUDE,
+            ModelType.GEMINI,
+            ModelType.OLLAMA_LOCAL
+        ]
         
-        # Remover el modelo que rechazó
-        if rejected_model in fallback_chain:
-            fallback_chain.remove(rejected_model)
+        # Remover el modelo que rechazó (convert string to ModelType if needed)
+        try:
+            rejected_model_type = ModelType(rejected_model) if isinstance(rejected_model, str) else rejected_model
+            if rejected_model_type in fallback_chain:
+                fallback_chain.remove(rejected_model_type)
+        except (ValueError, AttributeError):
+            pass
         
         for fallback_model in fallback_chain:
             logger.info(f"Attempting fallback to {fallback_model}")
@@ -139,7 +153,7 @@ class FallbackEngine:
         try:
             result = await self.provider_manager.invoke(
                 prompt,
-                model_preference="ollama_local",
+                model_preference=ModelType.OLLAMA_LOCAL,
                 max_tokens=2000,
             )
             return result

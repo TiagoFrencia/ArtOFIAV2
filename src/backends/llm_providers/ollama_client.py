@@ -58,7 +58,8 @@ class OllamaClient:
                         raise Exception(f"Ollama error: HTTP {resp.status}")
                     
                     data = await resp.json()
-                    return data.get("response", "")
+                    response: str = data.get("response", "")
+                    return response
         
         except Exception as e:
             logger.error(f"Ollama generation failed: {e}")

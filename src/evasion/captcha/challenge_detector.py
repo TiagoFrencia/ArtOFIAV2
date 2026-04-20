@@ -115,7 +115,7 @@ class ChallengeDetector:
         """Analiza HTML en busca de desafíos CAPTCHA."""
         self.logger.info(f"🔍 Analizando página HTML en busca de desafíos...")
         
-        result = {
+        result: Dict[str, Any] = {
             "url": url,
             "timestamp": datetime.now().isoformat(),
             "challenges_detected": [],
@@ -129,7 +129,8 @@ class ChallengeDetector:
         for challenge_type, patterns in self.CAPTCHA_PATTERNS.items():
             for pattern in patterns:
                 if re.search(pattern, html, re.IGNORECASE):
-                    result["challenges_detected"].append({
+                    challenges_list: list[Dict[str, Any]] = result["challenges_detected"]
+                    challenges_list.append({
                         "type": challenge_type.value,
                         "pattern": pattern,
                         "severity": self._get_challenge_severity(challenge_type)
@@ -144,7 +145,8 @@ class ChallengeDetector:
                     "detected_at": "html",
                     "risk": "high"
                 }
-                result["honeypots_detected"].append(honeypot)
+                honeypots_list: list[Dict[str, Any]] = result["honeypots_detected"]
+                honeypots_list.append(honeypot)
         
         # Evaluar riesgo general
         if result["challenges_detected"]:
@@ -156,11 +158,13 @@ class ChallengeDetector:
             result["recommendation"] = "analyze_carefully"
         
         # Calcular confianza
-        confidence_factors = 0
-        if result["challenges_detected"]:
-            confidence_factors += len(result["challenges_detected"]) * 0.3
-        if result["honeypots_detected"]:
-            confidence_factors += len(result["honeypots_detected"]) * 0.2
+        confidence_factors: float = 0.0
+        challenges_list = result["challenges_detected"]
+        honeypots_list = result["honeypots_detected"]
+        if challenges_list:
+            confidence_factors += len(challenges_list) * 0.3
+        if honeypots_list:
+            confidence_factors += len(honeypots_list) * 0.2
         
         result["confidence_score"] = min(confidence_factors, 1.0)
         
@@ -177,7 +181,7 @@ class ChallengeDetector:
         """Analiza headers HTTP para indicadores de WAF."""
         self.logger.info("📋 Analizando headers de respuesta...")
         
-        result = {
+        result: Dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "waf_detected": False,
             "waf_type": None,
@@ -195,7 +199,8 @@ class ChallengeDetector:
                 if any(indicator.lower() in str(v).lower() for v in headers.values()):
                     result["waf_detected"] = True
                     result["waf_type"] = waf_name
-                    result["risk_indicators"].append({
+                    risk_indicators_list: list[Dict[str, Any]] = result["risk_indicators"]
+                    risk_indicators_list.append({
                         "indicator": indicator,
                         "waf": waf_name,
                         "severity": "high"
@@ -204,7 +209,8 @@ class ChallengeDetector:
         # Analizar security headers
         for header in self.WAF_HEADERS:
             if header in headers_lower:
-                result["security_headers"].append({
+                security_headers_list: list[Dict[str, Any]] = result["security_headers"]
+                security_headers_list.append({
                     "header": header,
                     "value": headers_lower[header]
                 })
@@ -214,7 +220,8 @@ class ChallengeDetector:
         for key, value in headers.items():
             if any(keyword in key.lower() or keyword in str(value).lower() 
                    for keyword in suspicious_keywords):
-                result["suspicious_headers"].append({
+                suspicious_headers_list: list[Dict[str, Any]] = result["suspicious_headers"]
+                suspicious_headers_list.append({
                     "header": key,
                     "value": value
                 })
@@ -232,7 +239,7 @@ class ChallengeDetector:
         """Detecta verificaciones invisibles en segundo plano (reCAPTCHA v3, etc)."""
         self.logger.info("🔎 Detectando desafíos invisibles...")
         
-        result = {
+        result: Dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "invisible_challenges": [],
             "detected": False,
@@ -267,7 +274,8 @@ class ChallengeDetector:
         for challenge_name, patterns in invisible_patterns.items():
             for pattern in patterns:
                 if re.search(pattern, combined_code, re.IGNORECASE):
-                    result["invisible_challenges"].append({
+                    invisible_challenges_list: list[Dict[str, Any]] = result["invisible_challenges"]
+                    invisible_challenges_list.append({
                         "type": challenge_name,
                         "pattern": pattern,
                         "detected": True
@@ -401,15 +409,15 @@ class ChallengeDetector:
 
     def _get_common_challenges(self) -> List[Dict[str, Any]]:
         """Retorna desafíos más comunes."""
-        challenge_freq = {}
+        challenge_freq: dict[str, int] = {}
         
         for detection in self.detection_history:
             for challenge in detection.get("challenges_detected", []):
                 challenge_type = challenge.get("type")
-                challenge_freq[challenge_type] = challenge_freq.get(challenge_type, 0) + 1
+                if challenge_type:
+                    challenge_freq[challenge_type] = challenge_freq.get(challenge_type, 0) + 1
         
-        return sorted(
-            [{"challenge": k, "count": v} for k, v in challenge_freq.items()],
-            key=lambda x: x["count"],
-            reverse=True
-        )[:5]
+        challenge_list: list[Dict[str, Any]] = [
+            {"challenge": k, "count": v} for k, v in challenge_freq.items()
+        ]
+        return sorted(challenge_list, key=lambda x: x["count"], reverse=True)[:5]

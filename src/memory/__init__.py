@@ -1,31 +1,41 @@
+"""Hybrid Memory System - Advanced Context Retention for ArtOfIA.
+
+Combines two memory layers to prevent loops, context loss, and blind decisions:
+
+1. **SEMANTIC MEMORY** (Knowledge Graph):
+   - GraphManager: Relationship mapping (Endpoint → Token → Vulnerability)
+   - TemporalTracker: Temporal awareness of tactics and defenses
+   - ExploitationContext: Global attack state registry
+
+2. **EPISODIC + RAG MEMORY** (Vector Database):
+   - PGVectorClient: Fast semantic search of experiences
+   - ContextSummarizer: LLM context manager (token budgeting)
+   - EpisodicMemoryStore: Playbooks from previous successes
+
+Benefits:
+    - Prevents repetition of failed actions (temporal awareness)
+    - Automatic loop detection (cycle detection)
+    - Suggests proven tactics for new targets (episodic retrieval)
+    - Maintains coherent context with token budgeting
+
+Integration:
+    Orchestrator → Planner (3-7 steps) → Agents (with memory enrichment)
+    
+    ReconAgent/LogicAgent/ExploitAgent register experiences
+    MemoryStore provides feedback for future decisions
+
+Example:
+    from src.memory import GraphManager, PGVectorClient
+    
+    graph = GraphManager()
+    await graph.initialize()
+    
+    vector_db = PGVectorClient()
+    await vector_db.connect()
 """
-Módulo de Memoria Híbrida - Sistema Avanzado de Retención de Contexto.
 
-Combina dos capas de memoria para evitar bucles, pérdida de contexto y decisiones ciegas:
-
-1. MEMORIA SEMÁNTICA (Grafo de Conocimiento)
-   └─ knowledge_graph/
-      ├─ GraphManager: Mapa de relaciones (Endpoint → Token → Vulnerabilidad)
-      ├─ TemporalTracker: Consciencia temporal de tácticas/defensas
-      └─ ExploitationContext: Registro global del estado del ataque
-
-2. MEMORIA RAG + EPISÓDICA (Base de Datos Vectorial)
-   └─ vector_db/
-      ├─ PGVectorClient: Búsqueda semántica rápida de experiencias
-      ├─ ContextSummarizer: Gestor de contexto LLM (token budgeting)
-      └─ EpisodicMemoryStore: Playbooks extraídos de éxitos previos
-
-Propósito:
-- Prevenir repetición de acciones fallidas (temporal awareness)
-- Detectar bucles automáticamente (cycle detection)
-- Sugerir tácticas probadas para nuevos targets (episodic retrieval)
-- Mantener contexto coherente con presupuesto de tokens (summarization)
-
-Integración:
-- Orchestrator → Planner (3-7 steps) → Agents (con memory enrichment)
-- ReconAgent/LogicAgent/ExploitAgent registran experiencias
-- MemoryStore retroalimenta decisiones futuras
-"""
+from datetime import datetime
+from typing import Dict, Any
 
 from .knowledge_graph import (
     GraphManager,

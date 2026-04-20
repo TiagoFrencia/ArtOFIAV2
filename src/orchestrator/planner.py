@@ -65,7 +65,7 @@ class AttackPlanner:
         plan_id = self._generate_plan_id()
         self.logger.info(f"📋 Generando plan de ataque {plan_id}")
 
-        plan = {
+        plan: Dict[str, Any] = {
             "id": plan_id,
             "target": target_info,
             "created_at": datetime.now().isoformat(),
@@ -123,7 +123,7 @@ class AttackPlanner:
 
     async def _generate_hierarchical_steps(
         self, target_info: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+    ) -> list[Dict[str, Any]]:
         """
         ⭐ NUEVO: Genera pasos con enrutamiento jerárquico.
         
@@ -210,16 +210,16 @@ class AttackPlanner:
         return True, ""
 
     async def _augment_steps(
-        self, steps: List[Dict[str, Any]], target_count: int
-    ) -> List[Dict[str, Any]]:
+        self, steps: list[Dict[str, Any]], target_count: int
+    ) -> list[Dict[str, Any]]:
         """Amplía lista de pasos hasta objetivo."""
         self.logger.info(f"🔧 Ampliando pasos hasta {target_count}...")
         # Para ahora, solo retornar los existentes
         return steps
 
     async def _simplify_steps(
-        self, steps: List[Dict[str, Any]], target_count: int
-    ) -> List[Dict[str, Any]]:
+        self, steps: list[Dict[str, Any]], target_count: int
+    ) -> list[Dict[str, Any]]:
         """Simplifica lista de pasos a límite máximo."""
         self.logger.info(f"🔧 Simplificando pasos a {target_count}...")
         return steps[:target_count]

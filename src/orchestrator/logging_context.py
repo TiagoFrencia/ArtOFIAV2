@@ -20,7 +20,7 @@ import contextvars
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, AsyncGenerator
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 
@@ -143,7 +143,7 @@ async def LogContext(
     agent: str = "",
     stage: str = "",
     user_id: str = "",
-):
+) -> AsyncGenerator[LogContextData, None]:
     """
     Context manager for distributed logging.
     
@@ -196,7 +196,7 @@ async def LogContext(
 
 
 @asynccontextmanager
-async def StageContext(stage_name: str):
+async def StageContext(stage_name: str) -> AsyncGenerator[str, None]:
     """
     Context manager for a specific stage within an operation.
     
@@ -215,7 +215,7 @@ async def StageContext(stage_name: str):
 
 
 @asynccontextmanager
-async def AgentContext(agent_name: str):
+async def AgentContext(agent_name: str) -> AsyncGenerator[str, None]:
     """Context manager for agent execution context"""
     prev_agent = _agent.get()
     _agent.set(agent_name)
@@ -229,18 +229,18 @@ async def AgentContext(agent_name: str):
 class PerformanceTracker:
     """Track performance metrics within a context"""
     
-    def __init__(self, operation_name: str, logger: Optional[logging.Logger] = None):
+    def __init__(self, operation_name: str, logger: Optional[logging.Logger] = None) -> None:
         self.operation = operation_name
         self.logger = logger or logging.getLogger(__name__)
         self.start_time: Optional[float] = None
         self.metrics: Dict[str, Any] = {}
     
-    def __enter__(self):
+    def __enter__(self) -> "PerformanceTracker":
         self.start_time = time.time()
         return self
     
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        duration = time.time() - self.start_time
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        duration = time.time() - (self.start_time or 0.0)
         context = get_context()
         
         if exc_type:
@@ -266,7 +266,7 @@ class PerformanceTracker:
     def record_metric(self, name: str, value: float) -> None:
         """Record a performance metric"""
         self.metrics[name] = value
-        current_duration = time.time() - self.start_time
+        current_duration = time.time() - (self.start_time or 0.0)
         self.logger.debug(
             f"Metric: {name}={value}",
             extra={
@@ -313,13 +313,13 @@ def setup_logging_context(logger: logging.Logger) -> None:
 # EXAMPLES AND USAGE
 # ============================================================
 
-def example_usage():
+def example_usage() -> None:
     """Example of how to use distributed logging context"""
     logger = logging.getLogger("example")
     setup_logging_context(logger)
     
     # Usage in async context
-    async def run_attack():
+    async def run_attack() -> None:
         async with LogContext(
             operation_id="attack_2026_001",
             target="http://vulnerable-app.local",

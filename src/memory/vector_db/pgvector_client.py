@@ -20,12 +20,15 @@ import asyncio
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from dataclasses import dataclass, field
-import asyncpg
+import asyncpg  # type: ignore[import-untyped]
 
 try:
     import numpy as np
-except ImportError:
-    np = None
+except ImportError as e:
+    raise ImportError(
+        "numpy package is required for PGVectorClient. "
+        "Install it with: pip install numpy"
+    ) from e
 
 
 @dataclass
@@ -116,6 +119,8 @@ class PGVectorClient:
     
     async def _initialize_tables(self) -> None:
         """Inicializa tablas si no existen."""
+        if not self.pool:
+            raise RuntimeError("Connection pool not initialized")
         async with self.pool.acquire() as conn:
             # Instalar extensión pgvector si no existe
             await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
@@ -244,6 +249,8 @@ class PGVectorClient:
                 return False
             
             # Almacenar en DB
+            if not self.pool:
+                raise RuntimeError("Connection pool not initialized")
             async with self.pool.acquire() as conn:
                 await conn.execute("""
                     INSERT INTO memory_embeddings 
@@ -289,6 +296,8 @@ class PGVectorClient:
         Returns:
             Lista de (EmbeddingRecord, similarity_score) tuples
         """
+        if not self.pool:
+            raise RuntimeError("Connection pool not initialized")
         try:
             # Generar embedding de query
             query_embedding = await self._generate_embedding(query)
@@ -363,6 +372,8 @@ class PGVectorClient:
         Returns:
             Lista de EmbeddingRecords
         """
+        if not self.pool:
+            raise RuntimeError("Connection pool not initialized")
         try:
             sql = f"""
                 SELECT id, content, content_type, source_context, timestamp, metrics
@@ -405,6 +416,8 @@ class PGVectorClient:
         Returns:
             Número de registros eliminados
         """
+        if not self.pool:
+            raise RuntimeError("Connection pool not initialized")
         try:
             async with self.pool.acquire() as conn:
                 result = await conn.execute(f"""
@@ -439,6 +452,8 @@ class PGVectorClient:
         Returns:
             Diccionario con registros agrupados por tipo
         """
+        if not self.pool:
+            raise RuntimeError("Connection pool not initialized")
         try:
             sql = """
                 SELECT content_type, COUNT(*) as count
@@ -446,7 +461,7 @@ class PGVectorClient:
                 GROUP BY content_type
             """
             
-            export_data = {"timestamp": datetime.now().isoformat(), "records_by_type": {}}
+            export_data: Dict[str, Any] = {"timestamp": datetime.now().isoformat(), "records_by_type": {}}
             
             async with self.pool.acquire() as conn:
                 stats = await conn.fetch(sql)

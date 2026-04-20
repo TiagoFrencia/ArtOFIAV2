@@ -9,10 +9,11 @@ Este módulo implementa la "Regla de Cautela" de AGENTS.md:
 """
 
 import logging
-from typing import Dict, Any, Tuple, List
+from typing import Dict, Any, Tuple, List, cast, Union
 from enum import Enum
 from datetime import datetime
 import time
+import asyncio
 
 
 class RateLimiter:
@@ -25,8 +26,9 @@ class RateLimiter:
     - Global (e.g., 10000 total requests/hour)
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
+        self.lock = asyncio.Lock()  # ← CRITICAL: Atomic operations for thread-safe token management
         
         # Rate limit configuration (requests per window in seconds)
         self.limits = {
@@ -39,9 +41,10 @@ class RateLimiter:
         # Token buckets: {key} -> {"tokens": float, "last_refill": float}
         self.buckets: Dict[str, Dict[str, Any]] = {}
     
-    def check_rate_limit(self, resource_key: str, resource_type: str = "agent") -> Tuple[bool, str]:
+    async def check_rate_limit(self, resource_key: str, resource_type: str = "agent") -> Tuple[bool, str]:
         """
         Verifica si se permite la request dentro del límite de rate.
+        ATOMIC: Usa asyncio.Lock para operaciones thread-safe.
         
         Args:
             resource_key: Identificador del recurso (e.g., "recon_agent", "docker")
@@ -50,45 +53,46 @@ class RateLimiter:
         Returns:
             (permitido, razón_si_rechazado)
         """
-        if resource_type not in self.limits:
-            return True, ""  # No límite configurado
-        
-        limit_config = self.limits[resource_type]
-        max_requests = limit_config["max_requests"]
-        window = limit_config["window_seconds"]
-        
-        bucket_key = f"{resource_type}:{resource_key}"
-        current_time = time.time()
-        
-        # Inicializar bucket si no existe
-        if bucket_key not in self.buckets:
-            self.buckets[bucket_key] = {
-                "tokens": max_requests,
-                "last_refill": current_time
-            }
-        
-        bucket = self.buckets[bucket_key]
-        
-        # Calcular tokens a recuperar (refill)
-        time_since_refill = current_time - bucket["last_refill"]
-        tokens_to_add = (time_since_refill / window) * max_requests
-        
-        # Actualizar bucket
-        bucket["tokens"] = min(max_requests, bucket["tokens"] + tokens_to_add)
-        bucket["last_refill"] = current_time
-        
-        # Verificar si hay tokens disponibles
-        if bucket["tokens"] >= 1:
-            bucket["tokens"] -= 1
-            return True, ""
-        
-        # Límite excedido
-        remaining_time = window - time_since_refill
-        return (
-            False,
-            f"Rate limit exceeded: {resource_key} ({resource_type}). "
-            f"Retry after {remaining_time:.1f}s"
-        )
+        async with self.lock:  # ← CRITICAL: Asegura atomicidad
+            if resource_type not in self.limits:
+                return True, ""  # No límite configurado
+            
+            limit_config = self.limits[resource_type]
+            max_requests = limit_config["max_requests"]
+            window = limit_config["window_seconds"]
+            
+            bucket_key = f"{resource_type}:{resource_key}"
+            current_time = time.time()
+            
+            # Inicializar bucket si no existe
+            if bucket_key not in self.buckets:
+                self.buckets[bucket_key] = {
+                    "tokens": max_requests,
+                    "last_refill": current_time
+                }
+            
+            bucket = self.buckets[bucket_key]
+            
+            # Calcular tokens a recuperar (refill)
+            time_since_refill = current_time - bucket["last_refill"]
+            tokens_to_add = (time_since_refill / window) * max_requests
+            
+            # Actualizar bucket
+            bucket["tokens"] = min(max_requests, bucket["tokens"] + tokens_to_add)
+            bucket["last_refill"] = current_time
+            
+            # Verificar si hay tokens disponibles
+            if bucket["tokens"] >= 1:
+                bucket["tokens"] -= 1
+                return True, ""
+            
+            # Límite excedido
+            remaining_time = window - time_since_refill
+            return (
+                False,
+                f"Rate limit exceeded: {resource_key} ({resource_type}). "
+                f"Retry after {remaining_time:.1f}s"
+            )
     
     def reset_bucket(self, resource_key: str, resource_type: str = "agent") -> None:
         """Reset token bucket para un recurso."""
@@ -193,7 +197,7 @@ class SecurityValidator:
         self.rate_limiter = RateLimiter()
 
     async def validate_action(
-        self, agent_name: str, config: Dict[str, Any], action: Dict[str, Any]
+        self, agent_name: str, config: Union[Dict[str, Any], Any], action: Dict[str, Any]
     ) -> Tuple[bool, List[str]]:
         """
         Valida una acción con criterios estrictos.
@@ -218,7 +222,7 @@ class SecurityValidator:
             return False, reasons
 
         # ===== CHECKPOINT 1.5: Rate limit (NEW) =====
-        rate_limited, rate_reason = self.rate_limiter.check_rate_limit(
+        rate_limited, rate_reason = await self.rate_limiter.check_rate_limit(
             agent_name, 
             resource_type="agent"
         )
@@ -229,7 +233,7 @@ class SecurityValidator:
         
         # Rate limit Docker commands separately
         if action.get("type") == "docker_exec":
-            docker_limited, docker_reason = self.rate_limiter.check_rate_limit(
+            docker_limited, docker_reason = await self.rate_limiter.check_rate_limit(
                 "docker_commands",
                 resource_type="docker_command"
             )
@@ -436,7 +440,7 @@ class SecurityValidator:
             return False, f"Comando '{cmd_base}' no en whitelist"
 
         # Validar argumentos según comando
-        allowed_config = self.ALLOWED_DOCKER_COMMANDS[cmd_base]
+        allowed_config = cast(Dict[str, Any], self.ALLOWED_DOCKER_COMMANDS[cmd_base])
 
         # ⭐ SECURITY CHECK 1: Bloquear flags explícitamente peligrosos
         forbidden = allowed_config.get("forbidden_flags", [])
@@ -457,7 +461,7 @@ class SecurityValidator:
                 return False, "Module especificado requerido después de -m"
 
             module = args[1]
-            allowed_modules = allowed_config.get("modules", [])
+            allowed_modules = cast(List[str], allowed_config.get("modules", []))
             if module not in allowed_modules:
                 return False, f"Module '{module}' no en whitelist. Permitidos: {allowed_modules}"
 
@@ -466,7 +470,7 @@ class SecurityValidator:
                 return False, "Script path requerido para bash"
             
             script_path = args[0]
-            allowed_scripts = allowed_config.get("allowed_scripts", {})
+            allowed_scripts = cast(Dict[str, Dict[str, Any]], allowed_config.get("allowed_scripts", {}))
             
             if script_path not in allowed_scripts:
                 return False, f"Script '{script_path}' no en whitelist"
@@ -496,13 +500,13 @@ class SecurityValidator:
 
         elif cmd_base == "curl":
             # Validar flags
-            allowed_flags = allowed_config.get("allowed_flags", [])
+            allowed_flags = cast(List[str], allowed_config.get("allowed_flags", []))
             for i, arg in enumerate(args):
                 if arg.startswith("-") and arg not in allowed_flags:
                     return False, f"Flag curl no permitida: {arg}"
             
             # ⭐ SECURITY: Validar que solo accede a hosts permitidos
-            allowed_hosts = allowed_config.get("allowed_hosts", [])
+            allowed_hosts = cast(List[str], allowed_config.get("allowed_hosts", []))
             for arg in args:
                 if arg.startswith("http://") or arg.startswith("https://"):
                     # Extraer host
@@ -593,7 +597,7 @@ class SecurityValidator:
         self.tool_call_history.append(entry)
 
     async def validate_operation(
-        self, operation: Dict[str, Any], config: Dict[str, Any]
+        self, operation: Dict[str, Any], config: Union[Dict[str, Any], Any]
     ) -> Tuple[bool, List[str]]:
         """
         Valida una operación completa.

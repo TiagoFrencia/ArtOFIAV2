@@ -15,6 +15,7 @@ import hashlib
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from dataclasses import dataclass, asdict
+from typing import cast
 
 
 @dataclass
@@ -57,7 +58,7 @@ class BrowserFingerprint:
     mem_js_heap_size: int
     
     # Network
-    connection_downlink: int
+    connection_downlink: float
     connection_rtt: int
     connection_type: str
     
@@ -284,7 +285,7 @@ window.__fingerprint__ = {{
         """Compara dos fingerprints para detectar inconsistencias."""
         self.logger.info("🔍 Comparando fingerprints...")
         
-        differences = {
+        differences: Dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "identical": True,
             "critical_differences": [],
@@ -298,7 +299,7 @@ window.__fingerprint__ = {{
             val1 = getattr(fp1, prop)
             val2 = getattr(fp2, prop)
             if val1 != val2:
-                differences["critical_differences"].append({
+                cast(list[Dict[str, Any]], differences["critical_differences"]).append({
                     "property": prop,
                     "fingerprint1": val1,
                     "fingerprint2": val2
@@ -311,7 +312,7 @@ window.__fingerprint__ = {{
             val1 = getattr(fp1, prop)
             val2 = getattr(fp2, prop)
             if val1 != val2:
-                differences["minor_differences"].append({
+                cast(list[Dict[str, Any]], differences["minor_differences"]).append({
                     "property": prop,
                     "fingerprint1": val1,
                     "fingerprint2": val2
@@ -319,7 +320,10 @@ window.__fingerprint__ = {{
         
         # Calcular score de similitud
         total_props = len(critical_props) + len(minor_props)
-        diff_count = len(differences["critical_differences"]) + len(differences["minor_differences"])
+        diff_count = (
+            len(cast(list[Dict[str, Any]], differences["critical_differences"])) + 
+            len(cast(list[Dict[str, Any]], differences["minor_differences"]))
+        )
         differences["similarity_score"] = (total_props - diff_count) / total_props
         
         self.logger.info(f"✓ Similitud: {differences['similarity_score']:.1%}")
@@ -442,14 +446,14 @@ window.__fingerprint__ = {{
 
     def _get_browser_distribution(self) -> Dict[str, int]:
         """Retorna distribución de navegadores."""
-        dist = {}
+        dist: dict[str, int] = {}
         for fp in self.fingerprint_history:
             dist[fp.browser_name] = dist.get(fp.browser_name, 0) + 1
         return dist
 
     def _get_os_distribution(self) -> Dict[str, int]:
         """Retorna distribución de sistemas operativos."""
-        dist = {}
+        dist: dict[str, int] = {}
         for fp in self.fingerprint_history:
             dist[fp.os_name] = dist.get(fp.os_name, 0) + 1
         return dist

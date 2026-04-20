@@ -2,61 +2,94 @@
 Orchestrator Server - Punto de entrada del orquestador central.
 
 Responsabilidades:
-- Inicializar el orquestador
-- Cargar y parsear configuración desde .mcp.json
-- Mapear agentes disponibles y sus capacidades
-- Coordinar flujo de operaciones
+- Orquestar flujo del sistema
+- Coordinar agentes autónomos
+- Ejecutar validaciones de seguridad
 - Registrar auditoría centralizada
+
+NOTA: Configuración delegada a config_loader.py (Single Responsibility)
 """
 
-import json
 import logging
 import signal
 import asyncio
-from typing import Dict, Any, List, Optional
-from pathlib import Path
-import os
+from typing import Dict, Any, List, Optional, cast
 from datetime import datetime
 
+from src.orchestrator.config_loader import ConfigLoader, OrchestratorConfig
 from src.orchestrator.supervisor import SecurityValidator
 from src.orchestrator.planner import AttackPlanner
 from src.orchestrator.memory_manager import MemoryManager
+from src.core.exceptions import ValidationException
 
 
 class OrchestratorServer:
-    """Gestor central de agentes autónomos ArtOfIA."""
+    """Gestor central de agentes autónomos ArtOfIA - Refactorizado.
+    
+    Separa responsabilidades:
+    - config_loader.py: Carga de configuración
+    - supervisor.py: Validación de seguridad
+    - planner.py: Planificación de ataques
+    - memory_manager.py: Auditoría y persistencia
+    """
 
     def __init__(self, config_path: str = ".mcp.json") -> None:
         """
-        Inicializa el orquestador leyendo configuración y validando setup.
+        Inicializa orquestador CON INYECCIÓN DE DEPENDENCIAS.
 
         Args:
-            config_path: Ruta al archivo .mcp.json de configuración
+            config_path: Ruta al archivo .mcp.json
+        
+        Raises:
+            FileNotFoundError: Si archivo de config no existe
+            ConfigurationError: Si configuración es inválida
         """
-        self.config_path = Path(config_path)
-        self.config: Dict[str, Any] = {}
-        self.agents: Dict[str, Dict[str, Any]] = {}
+        self.logger = self._setup_logging()
+        self.logger.info("=" * 60)
+        self.logger.info("ORCHESTRATOR SERVER INITIALIZATION")
+        self.logger.info("=" * 60)
+        
+        # 1. Cargar configuración usando ConfigLoader (SRP)
+        try:
+            config_loader = ConfigLoader(config_path)
+            self.config: OrchestratorConfig = config_loader.load()
+            self.logger.info(f"✓ Configuración cargada desde {config_path}")
+        except (FileNotFoundError, ValidationException, Exception) as e:
+            self.logger.error(f"✗ Error cargando configuración: {e}")
+            raise
+        
+        # 2. Mapear agentes desde configuración tipada
+        self.agents: Dict[str, Dict[str, Any]] = {
+            name: {
+                "command": agent.command,
+                "args": agent.args,
+                "env": agent.env
+            }
+            for name, agent in self.config.agents.items()
+        }
+        self.logger.info(f"✓ {len(self.agents)} agentes mapeados")
+        
+        # 3. Inyectar componentes del sistema
         self.security_validator = SecurityValidator()
         self.planner = AttackPlanner()
         self.memory_manager = MemoryManager()
+        self.logger.info("✓ Componentes del sistema inyectados")
 
-        # Context para shutdown elegante
+        # 4. Estado asincrónico para shutdown elegante
         self._shutdown_event: Optional[asyncio.Event] = None
-        self._active_tasks: List[asyncio.Task] = []
+        self._active_tasks: List[asyncio.Task[Any]] = []
         self._mcp_connections: List[Any] = []
 
-        # Configurar logging
-        self._setup_logging()
-
-        # Cargar y validar configuración
-        self._load_configuration()
-        self._validate_infrastructure()
-
-        # Registrar handlers de señales
+        # 5. Registrar handlers de señales
         self._register_signal_handlers()
+        
+        self.logger.info("=" * 60)
+        self.logger.info("✓ ORCHESTRATOR INITIALIZATION COMPLETE")
+        self.logger.info("=" * 60)
 
-    def _setup_logging(self) -> None:
-        """Configura sistema de logging centralizado."""
+    def _setup_logging(self) -> logging.Logger:
+        """Configura logging centralizado. Retorna logger."""
+        from pathlib import Path
         log_dir = Path("src/memory/knowledge_graph")
         log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -70,59 +103,7 @@ class OrchestratorServer:
                 logging.StreamHandler(),
             ],
         )
-        self.logger = logging.getLogger(__name__)
-        self.logger.info("=== Orchestrator Server Iniciado ===")
-
-    def _load_configuration(self) -> None:
-        """
-        Carga y parsea el archivo .mcp.json.
-
-        Raises:
-            FileNotFoundError: Si .mcp.json no existe
-            json.JSONDecodeError: Si el JSON es inválido
-        """
-        if not self.config_path.exists():
-            raise FileNotFoundError(f"Configuración no encontrada: {self.config_path}")
-
-        try:
-            with open(self.config_path, "r", encoding="utf-8") as f:
-                self.config = json.load(f)
-            self.logger.info(f"✓ Configuración cargada desde {self.config_path}")
-        except json.JSONDecodeError as e:
-            self.logger.error(f"✗ JSON inválido en {self.config_path}: {e}")
-            raise
-
-        # Extraer agentes de configuración
-        self.agents = self.config.get("mcpServers", {})
-        self.logger.info(f"✓ {len(self.agents)} agentes mapeados")
-
-    def _validate_infrastructure(self) -> None:
-        """
-        Valida que la infraestructura cumpla con AGENTS.md.
-
-        Verificaciones:
-        - Orchestrator definido explícitamente
-        - Sandbox required para exploit_agent
-        - Validación semántica habilitada
-        """
-        # Verificar que orchestrator está definido
-        if "orchestrator" not in self.agents:
-            self.logger.warning("⚠ Orchestrator no está mapeado en mcpServers")
-
-        # Verificar que exploit_agent existe y requiere sandbox
-        if "exploit_agent" in self.agents:
-            exploit_cfg = self.agents["exploit_agent"]
-            if not exploit_cfg.get("env", {}).get("SANDBOX") == "required":
-                self.logger.warning("⚠ exploit_agent no tiene SANDBOX=required")
-            if not exploit_cfg.get("env", {}).get("VALIDATION_REQUIRED") == "true":
-                self.logger.warning("⚠ exploit_agent no tiene VALIDATION_REQUIRED")
-
-        # Verificar seguridad global
-        security_cfg = self.config.get("security", {})
-        if not security_cfg.get("auditAllActions"):
-            self.logger.warning("⚠ auditAllActions no está habilitado")
-
-        self.logger.info("✓ Validación de infraestructura completada")
+        return logging.getLogger(__name__)
 
     def _register_signal_handlers(self) -> None:
         """
@@ -246,7 +227,7 @@ class OrchestratorServer:
         agent_cfg = self.get_agent_config(agent_name)
         if not agent_cfg:
             return []
-        return agent_cfg.get("capabilities", [])
+        return cast(List[str], agent_cfg.get("capabilities", []))
 
     async def validate_action(
         self, agent_name: str, action: Dict[str, Any]

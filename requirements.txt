@@ -8,6 +8,8 @@ aiofiles==23.2.1
 # Database & Graph
 neo4j==5.16.0
 sqlalchemy==2.0.23
+asyncpg==0.29.0              # PostgreSQL async driver (REQUIRED for pgvector memory system)
+redis==5.0.1                 # Redis async client (REQUIRED for caching/memoization)
 
 # Web & HTTP
 requests==2.31.0

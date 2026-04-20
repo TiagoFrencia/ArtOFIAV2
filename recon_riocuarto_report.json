@@ -1,0 +1,111 @@
+{
+  "domain": "riocuarto.gob.ar",
+  "timestamp": "2026-04-20T13:21:55.016383",
+  "domain_info": {
+    "domain": "riocuarto.gob.ar",
+    "ip_address": "216.150.1.1",
+    "asn": "AS16371 (simulado para privacidad)",
+    "registrar": "IANA Argentina",
+    "created": "2001-01-15 (simulado)",
+    "expires": "2025-01-15 (simulado)"
+  },
+  "security_headers": {
+    "timestamp": "2026-04-20T13:21:55.487618",
+    "headers_found": {
+      "Strict-Transport-Security": "max-age=63072000"
+    },
+    "headers_missing": [
+      "Content-Security-Policy",
+      "X-Frame-Options",
+      "X-Content-Type-Options",
+      "X-XSS-Protection",
+      "Referrer-Policy",
+      "Permissions-Policy"
+    ],
+    "security_score": 14.285714285714285
+  },
+  "certificate_info": {
+    "subject": "{}",
+    "issuer": "{}",
+    "version": null,
+    "valid_from": "N/A",
+    "valid_until": "N/A",
+    "cn": "N/A",
+    "alt_names": []
+  },
+  "technologies": [
+    "React"
+  ],
+  "api_endpoints": [],
+  "subdomains": [
+    "www.riocuarto.gob.ar (216.150.1.1)",
+    "mail.riocuarto.gob.ar (200.123.250.180)",
+    "app.riocuarto.gob.ar (181.15.158.199)"
+  ],
+  "emails": [
+    "ceremonialyprotocolo@riocuarto.gov.ar",
+    "presupuestoparticipativo@riocuarto.gov.ar",
+    "bromatologia@riocuarto.gov.ar",
+    "jpossetto@riocuarto.gov.ar",
+    "portal.empleo.riocuarto@gmail.com",
+    "pct.riocuarto@gmail.com",
+    "comunicacion@deportesriocuarto.gob.ar",
+    "prensa.gobiernoderiocuarto@gmail.com",
+    "saludocupacional@riocuarto.gov.ar",
+    "garavaglia.fc@gmail.com",
+    "contribucionesvarias@riocuarto.gov.ar",
+    "auditoriafiscal@riocuarto.gov.ar",
+    "capacitacionmunir4@gmail.com",
+    "subsecretariadelasmujeresrio4@gmail.com",
+    "secretariatrabajomunicipalidad@gmail.com",
+    "programajovenriocuarto@gmail.com",
+    "lricotto@riocuarto.gov.ar",
+    "escuelamunicipaldearterio4@gmail.com",
+    "desarrolloestrategico@riocuarto.gov.ar",
+    "administracion@deportesriocuarto.gob.ar",
+    "capacitacion@riocuarto.gov.ar",
+    "subsecretariadeninez@riocuarto.gov.ar",
+    "direcciongeneraldecementerio@gmail.com",
+    "edecarpinteria@gmail.com",
+    "programaexpresioncultural@gmail.com",
+    "gestiondetramites@riocuarto.gov.ar",
+    "presidencia@deportesriocuarto.gob.ar",
+    "mesadeentradas@riocuarto.gov.ar",
+    "administracionrrhh@riocuarto.gov.ar",
+    "desarrolloeconomico@riocuarto.gov.ar",
+    "urbanomercado4@gmail.com",
+    "cooperativas.institucional@gmail.com",
+    "areadejuventudriocuarto@gmail.com",
+    "polideportivo2@deportesriocuarto.gob.ar"
+  ],
+  "sensitive_comments": [],
+  "links_internal": [
+    "/_next/static/media/e4af272ccee01ff0-s.p.woff2",
+    "/images/icons/circles-yellow.webp",
+    "/images/icons/squares-pink.webp",
+    "/images/icons/waves-lightblue.webp",
+    "/images/logos/logo-gobierno-white.webp",
+    "/images/icons/circles-white.webp",
+    "/images/icons/squares-white.webp",
+    "/images/icons/waves-white.webp",
+    "https://cdn-contenidos.riocuarto.gob.ar/posts/images/se-lanzo-el-programa-de-boxeo-primer-round-20260417193117.jpg",
+    "https://cdn-contenidos.riocuarto.gob.ar/posts/images/se-reunieron-con-instituciones-de-discapacidad-20260416225453.jpg"
+  ],
+  "links_external": [
+    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/js/all.min.js",
+    "https://goo.gl/maps/tu-link-aqui",
+    "https://defensoriariocuarto.org/",
+    "https://www.facebook.com/gobderiocuarto",
+    "https://www.instagram.com/gobderiocuarto/",
+    "https://www.youtube.com/@GobiernodeR%C3%ADoCuarto"
+  ],
+  "meta_information": {
+    "title": "Gobierno de Río Cuarto | Portal Oficial",
+    "description": "Portal oficial del Gobierno de Río Cuarto. Encuentra noticias, trámites, programas y más."
+  },
+  "http_methods": [
+    "GET: 200",
+    "OPTIONS: 204",
+    "HEAD: 200"
+  ]
+}
