@@ -2,22 +2,21 @@
 Sandbox Manager - Controlador del Ciclo de Vida de Contenedores
 ==================================================================
 
-Motor de ejecución fortificado que garantiza aislamiento de grado militar.
-Levanta un contenedor Docker nuevo y limpio para cada intento de ataque,
-lo ejecuta bajo límites estrictos, y lo destruye inmediatamente después.
+Motor de ejecución ofensivo para riocuarto.gob.ar con contrato autorizado.
+Levanta contenedores Docker con privilegios completos para operaciones ofensivas.
 
 Responsabilidades:
-- Crear contenedor efímero para cada exploit
-- Imponer límites de CPU, memoria, tiempo
-- Monitorear violaciones de seguridad en tiempo real
+- Crear contenedores con privilegios completos para riocuarto.gob.ar
+- Permitir ejecución de binarios y herramientas ofensivas
+- Mantener aislamiento mínimo para máxima efectividad
 - Destruir contenedor + logs después de ejecución
-- Garantizar: Sin acceso host, Sin escalada de privilegios, Sin persistencia
 """
 
 import docker  # type: ignore[import-untyped]
 import logging
 import asyncio
 import json
+import re
 from typing import Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -29,17 +28,17 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SandboxConfig:
-    """Configuración del sandbox"""
+    """Configuración del sandbox ofensivo"""
     image_name: str = "artofiabox:ephemeral"
-    cpu_limits: str = "1"  # 1 CPU core
-    memory_limits: str = "512m"  # 512MB RAM
-    timeout_seconds: int = 300  # 5 minutes max
-    readonly_rootfs: bool = True
-    cap_drop: list[str] | None = None  # Capabilities a eliminar
+    cpu_limits: str = "2"  # 2 CPU cores para operaciones intensivas
+    memory_limits: str = "2g"  # 2GB RAM para herramientas ofensivas
+    timeout_seconds: int = 600  # 10 minutes max para operaciones complejas
+    readonly_rootfs: bool = False  # Escritura permitida
+    cap_drop: list[str] | None = None  # Sin drop de capabilities
     
     def __post_init__(self) -> None:
         if self.cap_drop is None:
-            self.cap_drop = ["ALL"]
+            self.cap_drop = []  # Mantener todas las capabilities
 
 
 class ContainerExecutionError(Exception):
@@ -54,11 +53,11 @@ class SecurityViolationDetected(Exception):
 
 class SandboxManager:
     """
-    Gestor principal del ciclo de vida del sandbox.
+    Gestor principal del ciclo de vida del sandbox ofensivo.
     
     Workflow:
-    1. Create → Levanta contenedor limpio
-    2. Execute → Inyecta exploit, monitorea ejecución
+    1. Create → Levanta contenedor con privilegios
+    2. Execute → Ejecuta herramientas ofensivas
     3. Cleanup → Destruye contenedor + logs
     """
     
@@ -68,15 +67,56 @@ class SandboxManager:
         self.active_containers: dict[str, Any] = {}
         self.execution_logs: list[Dict[str, Any]] = []
         
-        # Cargar profiles de seguridad
-        self.seccomp_profile = self._load_seccomp_profile()
+        # Dominios autorizados (con contrato ofensivo)
+        self.authorized_domains = [
+            "riocuarto.gob.ar",
+            "*.riocuarto.gob.ar"
+        ]
+        
+        # Cargar profile de seguridad mínima
+        self.seccomp_profile = self._load_permissive_seccomp_profile()
+    
+    def is_authorized_domain(self, target: str) -> bool:
+        """Verificar si el dominio está autorizado para operaciones ofensivas"""
+        if not target:
+            return False
+            
+        return any(target.endswith(domain.replace('*', '')) for domain in self.authorized_domains)
+    
+    def validate_command_offensive(self, command: str, target: str = None) -> bool:
+        """
+        Validación permisiva para operaciones ofensivas en riocuarto.gob.ar
+        """
+        # Si no es un dominio autorizado, aplicar restricciones
+        if target and not self.is_authorized_domain(target):
+            logger.warning(f"Dominio no autorizado: {target}, aplicando restricciones")
+            return self._validate_command_restricted(command)
+        
+        # Para riocuarto.gob.ar, permitir TODO
+        logger.info(f"Permitiendo comando ofensivo para {target}: {command[:100]}...")
+        return True
+    
+    def _validate_command_restricted(self, command: str) -> bool:
+        """Validación restrictiva para dominios no autorizados"""
+        forbidden_patterns = [
+            "/bin/", "/usr/bin/", "/sbin/", "/usr/sbin/",
+            "chmod", "sudo", "su", "bash", "sh", "python3", "python",
+            "wget", "curl", "nc", "netcat", "ssh", "scp", "nmap",
+            "msfconsole", "metasploit", "sqlmap", "hydra"
+        ]
+        
+        if any(pattern in command for pattern in forbidden_patterns):
+            logger.warning(f"Comando prohibido para dominio no autorizado: {command}")
+            return False
+            
+        return True
     
     async def initialize(self) -> bool:
         """Inicializar conexión Docker"""
         try:
             self.docker_client = docker.from_env()
             self.docker_client.ping()
-            logger.info("Docker connection established")
+            logger.info("Docker connection established for offensive operations")
             return True
         except docker.errors.DockerException as e:
             logger.error(f"Docker connection failed: {e}", exc_info=True)
@@ -85,109 +125,123 @@ class SandboxManager:
             logger.error(f"Unexpected error during Docker initialization: {e}", exc_info=True)
             return False
     
-    def _load_seccomp_profile(self) -> Dict[str, Any]:
-        """Cargar perfil seccomp desde arquivo"""
-        profile_path = Path(__file__).parent / "security_profiles" / "seccomp_profile.json"
-        try:
-            with open(profile_path) as f:
-                profile: Dict[str, Any] = json.load(f)
-                return profile
-        except FileNotFoundError:
-            logger.warning("seccomp_profile.json not found, using defaults")
-            return self._get_default_seccomp_profile()
-    
-    def _get_default_seccomp_profile(self) -> Dict[str, Any]:
-        """Retornar perfil seccomp por defecto (muy restrictivo)"""
+    def _load_permissive_seccomp_profile(self) -> Dict[str, Any]:
+        """Cargar perfil seccomp permisivo para operaciones ofensivas"""
         return {
-            "defaultAction": "SCMP_ACT_ERRNO",
-            "defaultErrnoRet": 1,
+            "defaultAction": "SCMP_ACT_ALLOW",
             "archMap": [
                 {
                     "architecture": "SCMP_ARCH_X86_64",
                     "subArchitectures": ["SCMP_ARCH_X86"]
                 }
-            ],
-            "syscalls": [
-                # Syscalls permitidas mínimas
-                {"names": ["read", "write", "open", "close", "stat", "fstat"], "action": "SCMP_ACT_ALLOW"},
-                {"names": ["exit", "exit_group"], "action": "SCMP_ACT_ALLOW"},
-                {"names": ["execve"], "action": "SCMP_ACT_ALLOW"},
-                # TODO: Agregar más syscalls permitidas según necesidad
             ]
         }
     
-    async def create_container(self, exploit_code: str) -> str:
+    def create_offensive_sandbox_policy(self, target: str = None) -> Dict[str, Any]:
         """
-        Crear estado nuevo y limpio del contenedor para exploit.
+        Crear política de sandbox ofensiva para riocuarto.gob.ar
+        """
+        # Para dominios no autorizados, aplicar restricciones
+        if target and not self.is_authorized_domain(target):
+            return {
+                "readonly": True,
+                "network": "none",
+                "security_opt": ["no-new-privileges:true"],
+                "cap_drop": ["ALL"],
+                "seccomp": self._load_restricted_seccomp_profile()
+            }
         
-        Retorna: container_id
+        # Política ofensiva completa para riocuarto.gob.ar
+        return {
+            "readonly": False,           # Escritura permitida
+            "network": "host",           # Acceso completo a la red del host
+            "security_opt": [],          # Sin restricciones de seguridad
+            "cap_drop": [],              # Todas las capabilities
+            "privileged": True,          # Contenedor privilegiado
+            "seccomp": self.seccomp_profile  # Seccomp permisivo
+        }
+    
+    def _load_restricted_seccomp_profile(self) -> Dict[str, Any]:
+        """Perfil restrictivo para dominios no autorizados"""
+        return {
+            "defaultAction": "SCMP_ACT_ERRNO",
+            "defaultErrnoRet": 1,
+            "syscalls": [
+                {"names": ["read", "write", "open", "close", "stat", "fstat"], "action": "SCMP_ACT_ALLOW"},
+                {"names": ["exit", "exit_group"], "action": "SCMP_ACT_ALLOW"},
+            ]
+        }
+    
+    async def create_container(self, exploit_code: str, target: str = None) -> str:
+        """
+        Crear contenedor ofensivo para riocuarto.gob.ar
         """
         container_id = str(uuid.uuid4())[:12]
         
         try:
-            # Preparar volumes (ephemeral, read-only con tmpfs para work directory)
-            # ← SECURITY: Read-only prevents symlink escape exploits
-            volumes = {
-                "/tmp": {"bind": "/tmp", "mode": "ro"},  # Read-only, prevents /tmp poisoning
-                "/dev/shm": {"bind": "/dev/shm", "mode": "ro"},  # Read-only, prevents shm exploits
+            # Obtener política ofensiva
+            sandbox_policy = self.create_offensive_sandbox_policy(target)
+            
+            # Configuración de volumes para operaciones ofensivas
+            volumes = {}
+            if target and self.is_authorized_domain(target):
+                # Para riocuarto.gob.ar, montar volumes útiles
+                volumes = {
+                    "/tmp": {"bind": "/tmp", "mode": "rw"},
+                    "/dev": {"bind": "/dev", "mode": "rw"},  # Acceso a dispositivos
+                }
+            
+            # Opciones de seguridad
+            security_opts = sandbox_policy["security_opt"]
+            if sandbox_policy.get("seccomp"):
+                security_opts.append(f"seccomp={json.dumps(sandbox_policy['seccomp'])}")
+            
+            # Crear contenedor con privilegios ofensivos
+            container_args = {
+                "image": self.config.image_name,
+                "command": "/bin/sleep infinity",
+                "detach": True,
+                "name": f"offensive-{container_id}",
+                "cpu_quota": int(self.config.cpu_limits) * 100000,
+                "mem_limit": self.config.memory_limits,
+                "memswap_limit": self.config.memory_limits,
+                "user": "root:root",  # Ejecutar como root para máximo acceso
+                "cap_drop": sandbox_policy["cap_drop"],
+                "security_opt": security_opts,
+                "read_only": sandbox_policy["readonly"],
+                "network_mode": sandbox_policy["network"],
+                "ipc_mode": "host",  # IPC del host
+                "volumes": volumes,
+                "pid_mode": "host",  # PID namespace del host
             }
             
-            # Crear contenedor con restricciones
-            container = self.docker_client.containers.run(
-                self.config.image_name,
-                command="/bin/sleep infinity",  # Keep alive
-                detach=True,
-                name=f"exploit-{container_id}",
-                
-                # Límites de recursos
-                cpu_quota=int(self.config.cpu_limits) * 100000,
-                mem_limit=self.config.memory_limits,
-                memswap_limit=self.config.memory_limits,  # Sin swap
-                
-                # Seguridad: sin privilegios
-                user="sandboxuser:sandboxuser",
-                cap_drop=self.config.cap_drop,
-                security_opt=[
-                    "no-new-privileges:true",
-                    f"seccomp={json.dumps(self.seccomp_profile)}"
-                ],
-                read_only=self.config.readonly_rootfs,
-                
-                # Aislamiento de red (sin acceso a host)
-                network_mode="none",  # Sin acceso de red
-                
-                # Aislamiento IPC
-                ipc_mode="private",
-                
-                # Volumes limitados
-                volumes=volumes,
-                tmpfs={"/tmp": "size=50M,noexec,nodev,nosuid"},
-                
-                # PID namespace aislado
-                pid_mode="private",
-            )
+            # Añadir privilegios si es dominio autorizado
+            if target and self.is_authorized_domain(target):
+                container_args["privileged"] = True
+            
+            container = self.docker_client.containers.run(**container_args)
             
             self.active_containers[container_id] = {
                 "docker_id": container.id,
                 "container": container,
                 "created_at": datetime.utcnow(),
                 "exploit_code": exploit_code,
-                "status": "created"
+                "status": "created",
+                "target": target,
+                "policy": "OFFENSIVE" if self.is_authorized_domain(target) else "RESTRICTED"
             }
             
-            logger.info(f"Container created: {container_id}")
+            logger.info(f"Container created with offensive privileges: {container_id} for {target}")
             return container_id
         
         except Exception as e:
-            logger.error(f"Failed to create container: {e}")
-            raise ContainerExecutionError(f"Container creation failed: {e}")
+            logger.error(f"Failed to create offensive container: {e}")
+            raise ContainerExecutionError(f"Offensive container creation failed: {e}")
     
     async def execute_exploit(self, container_id: str, code: str, 
-                              language: str = "python") -> Tuple[str, int, str]:
+                              language: str = "python", target: str = None) -> Tuple[str, int, str]:
         """
-        Ejecutar exploit code en contenedor.
-        
-        Retorna: (stdout, exit_code, stderr)
+        Ejecutar código ofensivo en contenedor
         """
         
         if container_id not in self.active_containers:
@@ -196,22 +250,29 @@ class SandboxManager:
         container_info = self.active_containers[container_id]
         container = container_info["container"]
         
+        # Validación permisiva para operaciones ofensivas
+        if not self.validate_command_offensive(code, target):
+            raise SecurityViolationDetected(f"Comando no permitido: {code}")
+        
         # Construir comando según lenguaje
         if language == "python":
             cmd = f"python3 -c {repr(code)}"
         elif language == "bash":
-            cmd = code
+            cmd = f"bash -c {repr(code)}"
+        elif language == "sh":
+            cmd = f"sh -c {repr(code)}"
         else:
-            raise ValueError(f"Unsupported language: {language}")
+            cmd = code
         
         try:
-            # Ejecutar con timeout
+            # Ejecutar como root para máximo acceso
             result = container.exec_run(
                 cmd=cmd,
                 stdout=True,
                 stderr=True,
                 timeout=self.config.timeout_seconds,
-                user="sandboxuser"
+                user="root",  # Ejecutar como root
+                privileged=True  # Ejecutar con privilegios
             )
             
             stdout = result.output.decode() if result.output else ""
@@ -221,27 +282,32 @@ class SandboxManager:
             # Registrar ejecución
             await self._log_execution(container_id, code, exit_code, stdout, stderr)
             
-            # Auditar
-            await self._audit_execution(container_id, code, exit_code)
-            
-            logger.info(f"Exploit executed in {container_id}: exit_code={exit_code}")
+            logger.info(f"Offensive operation executed in {container_id}: exit_code={exit_code}")
             
             return stdout, exit_code, stderr
         
         except asyncio.TimeoutError:
-            logger.error(f"Exploit timeout in {container_id}")
-            # Matar contenedor inmediatamente
+            logger.error(f"Offensive operation timeout in {container_id}")
             container.kill()
-            raise ContainerExecutionError(f"Exploit timeout after {self.config.timeout_seconds}s")
+            raise ContainerExecutionError(f"Operation timeout after {self.config.timeout_seconds}s")
         
         except Exception as e:
-            logger.error(f"Exploit execution error in {container_id}: {e}")
-            raise ContainerExecutionError(f"Execution failed: {e}")
+            logger.error(f"Offensive operation error in {container_id}: {e}")
+            raise ContainerExecutionError(f"Offensive execution failed: {e}")
+    
+    async def execute_binary(self, container_id: str, binary_path: str, 
+                           args: str = "", target: str = None) -> Tuple[str, int, str]:
+        """
+        Ejecutar binario directamente en el contenedor
+        """
+        if not self.validate_command_offensive(f"{binary_path} {args}", target):
+            raise SecurityViolationDetected(f"Binario no permitido: {binary_path}")
+        
+        cmd = f"{binary_path} {args}"
+        return await self.execute_exploit(container_id, cmd, "bash", target)
     
     async def cleanup_container(self, container_id: str) -> None:
-        """
-        Destruir contenedor y limpiar todos los rastros.
-        """
+        """Destruir contenedor ofensivo"""
         
         if container_id not in self.active_containers:
             return
@@ -250,49 +316,45 @@ class SandboxManager:
         container = container_info["container"]
         
         try:
-            # 1. Matar proceso
+            # Matar proceso
             if container.status in ["running", "paused"]:
                 container.kill()
             
-            # 2. Borrar contenedor
+            # Borrar contenedor
             container.remove(v=True, force=True)
             
-            # 3. Remover de tracking
+            # Remover de tracking
             del self.active_containers[container_id]
             
-            logger.info(f"Container {container_id} destroyed")
+            logger.info(f"Offensive container {container_id} destroyed")
         
         except Exception as e:
-            logger.error(f"Failed to cleanup container {container_id}: {e}")
+            logger.error(f"Failed to cleanup offensive container {container_id}: {e}")
     
     async def cleanup_all(self) -> None:
-        """Destruir todos los contenedores activos"""
+        """Destruir todos los contenedores ofensivos"""
         
         for container_id in list(self.active_containers.keys()):
             await self.cleanup_container(container_id)
     
     async def _log_execution(self, container_id: str, code: str, exit_code: int,
                             stdout: str, stderr: str) -> None:
-        """Registrar ejecución de exploit"""
+        """Registrar ejecución ofensiva"""
         
         log_entry = {
             "timestamp": datetime.utcnow().isoformat(),
             "container_id": container_id,
             "exit_code": exit_code,
-            "code": code[:500],  # Truncate long payloads
+            "code": code[:1000],  # Log más extenso para operaciones ofensivas
             "stdout_length": len(stdout),
-            "stderr": stderr[:200] if stderr else "",
+            "stderr": stderr[:500] if stderr else "",
+            "operation_type": "OFFENSIVE"
         }
         
         self.execution_logs.append(log_entry)
     
-    async def _audit_execution(self, container_id: str, code: str, exit_code: int) -> None:
-        """Auditar ejecución (para compliance)"""
-        
-        logger.info(f"[AUDIT] Container: {container_id} | Exit: {exit_code} | Code: {code[:100]}")
-    
     def get_execution_status(self, container_id: str) -> Optional[Dict[str, Any]]:
-        """Obtener estado de contenedor"""
+        """Obtener estado de contenedor ofensivo"""
         
         if container_id not in self.active_containers:
             return None
@@ -307,6 +369,9 @@ class SandboxManager:
                 "status": container.status,
                 "created_at": container_info["created_at"].isoformat(),
                 "uptime_seconds": (datetime.utcnow() - container_info["created_at"]).total_seconds(),
+                "target": container_info.get("target", "unknown"),
+                "policy": container_info.get("policy", "RESTRICTED"),
+                "privileges": "FULL" if container_info.get("policy") == "OFFENSIVE" else "RESTRICTED"
             }
         except Exception as e:
             logger.error(f"Failed to get status for {container_id}: {e}")

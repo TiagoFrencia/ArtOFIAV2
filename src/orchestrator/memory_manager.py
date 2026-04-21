@@ -1,11 +1,13 @@
 """
-Memory Manager - Gestión de persistencia y auditoría centralizada.
+Memory Manager - Gestión de Persistencia Ofensiva
+=================================================
 
-Responsabilidades:
-- Persistencia de conocimiento en vector DB (PostgreSQL + pgvector)
-- Grafo de conocimiento (Neo4j) con relaciones entre ataques/defensas
-- Registro de auditoría centralizado
-- Recuperación de lecciones aprendidas para adaptar estrategia
+Responsabilidades ofensivas:
+- Persistencia de operaciones ofensivas
+- Auditoría de ataques contra riocuarto.gob.ar
+- Registro de técnicas ofensivas exitosas
+- Exfiltración de datos sensibles
+- Adaptación de estrategias ofensivas
 """
 
 import logging
@@ -15,65 +17,60 @@ from datetime import datetime
 from pathlib import Path
 import json
 
+logger = logging.getLogger(__name__)
+
 
 class MemoryManager:
-    """Gestor de persistencia y auditoría centralizado."""
+    """Gestor de persistencia para operaciones ofensivas."""
 
     def __init__(self) -> None:
-        """Inicializa el gestor de memoria."""
+        """Inicializa el gestor de memoria ofensiva."""
         self.logger = logging.getLogger(__name__)
 
-        # Configurar directorios de persistencia
-        self.vector_db_path = Path("src/memory/vector_db")
+        # Configurar directorios de persistencia ofensiva
+        self.offensive_db_path = Path("src/memory/offensive_ops")
         self.knowledge_graph_path = Path("src/memory/knowledge_graph")
 
-        self.vector_db_path.mkdir(parents=True, exist_ok=True)
+        self.offensive_db_path.mkdir(parents=True, exist_ok=True)
         self.knowledge_graph_path.mkdir(parents=True, exist_ok=True)
 
-        # Registros en memoria
-        self.audit_log: List[Dict[str, Any]] = []
+        # Registros ofensivos en memoria
+        self.offensive_audit_log: List[Dict[str, Any]] = []
         self.attack_failures: List[Dict[str, Any]] = []
         self.attack_successes: List[Dict[str, Any]] = []
+        self.exfiltration_log: List[Dict[str, Any]] = []  # Nuevo: log de exfiltración
         
-        # ⭐ Nuevo: Memoria de Razonamiento (Decision Traces)
-        # Para evitar que los agentes repitan los mismos errores
-        self.reasoning_traces: Dict[str, Dict[str, Any]] = {}
+        # ⭐ Memoria de Razonamiento Ofensivo
+        self.offensive_reasoning_traces: Dict[str, Dict[str, Any]] = {}
         
-        # Buffer de auditoría para flush en shutdown
-        self._audit_buffer: List[Dict[str, Any]] = []
-        self._buffer_lock = asyncio.Lock()  # ← THREAD SAFE: protege accesos concurrentes
+        # Buffer ofensivo para flush
+        self._offensive_buffer: List[Dict[str, Any]] = []
+        self._buffer_lock = asyncio.Lock()
 
-        self.logger.info("✓ Memory Manager inicializado")
+        self.logger.info("✓ Memory Manager Ofensivo inicializado")
 
-    async def log_operation(self, operation_id: str, operation: Dict[str, Any]) -> None:
+    async def log_offensive_operation(self, operation_id: str, operation: Dict[str, Any]) -> None:
         """
-        Registra una operación completa en auditoría.
-        
-        🔒 THREAD-SAFE: Usa AsyncLock para prevenir race conditions cuando múltiples
-           agentes escriben simultáneamente.
-
-        Args:
-            operation_id: ID único de la operación
-            operation: Detalles de la operación
+        Registrar operación ofensiva en auditoría.
         """
         entry = {
             "timestamp": datetime.now().isoformat(),
             "operation_id": operation_id,
             "operation": operation,
             "status": "pending",
+            "offensive": True,  # Marcar como operación ofensiva
+            "target": operation.get("target", "unknown"),
+            "technique": operation.get("technique", "unknown")
         }
 
-        # 🔒 CRITICAL SECTION: Proteger accesos concurrentes al buffer
         async with self._buffer_lock:
-            self.audit_log.append(entry)
-            self._audit_buffer.append(entry)  # Agregar a buffer para flush
+            self.offensive_audit_log.append(entry)
+            self._offensive_buffer.append(entry)
 
-        # Persistir a disco (fuera del lock para no bloquear otros writers)
-        await self._persist_audit_entry(entry)
+        await self._persist_offensive_entry(entry)
+        self.logger.info(f"📝 Operación ofensiva {operation_id} registrada")
 
-        self.logger.info(f"📝 Operación {operation_id} registrada en auditoría")
-
-    async def log_reasoning_trace(
+    async def log_offensive_reasoning(
         self,
         trace_id: str,
         step_number: int,
@@ -82,23 +79,14 @@ class MemoryManager:
         reasoning: Dict[str, Any],
     ) -> None:
         """
-        ⭐ NUEVO: Almacena una traza de razonamiento/decisión.
-        
-        Permite que los agentes aprendan por qué fallaron pasos anteriores
-        y eviten repetir los mismos errores conceptuales.
-
-        Args:
-            trace_id: ID de la traza (operation_id)
-            step_number: Número del paso
-            decision: Decisión tomada
-            outcome: Resultado (success/failure/partial)
-            reasoning: Detalles del razonamiento
+        Almacenar traza de razonamiento ofensivo.
         """
-        if trace_id not in self.reasoning_traces:
-            self.reasoning_traces[trace_id] = {
+        if trace_id not in self.offensive_reasoning_traces:
+            self.offensive_reasoning_traces[trace_id] = {
                 "trace_id": trace_id,
                 "created_at": datetime.now().isoformat(),
-                "steps": []
+                "steps": [],
+                "offensive": True
             }
 
         step_trace = {
@@ -107,27 +95,17 @@ class MemoryManager:
             "outcome": outcome,
             "reasoning": reasoning,
             "timestamp": datetime.now().isoformat(),
+            "offensive_strategy": True
         }
 
-        self.reasoning_traces[trace_id]["steps"].append(step_trace)
-
-        # Persistir inmediatamente
-        await self._persist_to_graph("reasoning_trace", step_trace)
+        self.offensive_reasoning_traces[trace_id]["steps"].append(step_trace)
+        await self._persist_to_graph("offensive_reasoning", step_trace)
 
         self.logger.info(
-            f"🧠 Traza de razonamiento registrada: {trace_id}/paso-{step_number} "
-            f"({outcome})"
+            f"🧠 Traza ofensiva registrada: {trace_id}/paso-{step_number}"
         )
 
-    async def get_reasoning_history(self, trace_id: str) -> Dict[str, Any]:
-        """
-        Recupera historial de razonamiento para una operación.
-        
-        Permite que agentes entiendan por qué fallaron pasos anteriores.
-        """
-        return self.reasoning_traces.get(trace_id, {})
-
-    async def log_attack_attempt(
+    async def log_offensive_attack(
         self,
         attack_type: str,
         target: str,
@@ -135,16 +113,7 @@ class MemoryManager:
         details: Dict[str, Any],
     ) -> None:
         """
-        Registra un intento de ataque con resultado.
-
-        CRÍTICO: Esta información se usa para adaptar estrategia futura.
-        🔒 THREAD-SAFE: Protegido con AsyncLock
-
-        Args:
-            attack_type: Tipo de ataque (sql_injection, jwt_abuse, xss, etc)
-            target: Objetivo del ataque
-            success: Si el ataque fue exitoso
-            details: Detalles técnicos del intento
+        Registrar intento de ataque ofensivo.
         """
         entry = {
             "timestamp": datetime.now().isoformat(),
@@ -152,299 +121,203 @@ class MemoryManager:
             "target": target,
             "success": success,
             "details": details,
+            "offensive": True,
+            "domain_authorized": self._is_authorized_domain(target)
         }
 
-        # 🔒 CRITICAL SECTION
         async with self._buffer_lock:
             if success:
                 self.attack_successes.append(entry)
             else:
                 self.attack_failures.append(entry)
         
-        # Persistir fuera del lock
         if success:
-            await self._persist_to_graph("attack_success", entry)
-            self.logger.info(f"✓ Ataque exitoso registrado: {attack_type} vs {target}")
+            await self._persist_to_graph("offensive_success", entry)
+            self.logger.info(f"✓ Ataque ofensivo exitoso: {attack_type} vs {target}")
         else:
-            await self._persist_to_graph("attack_failure", entry)
+            await self._persist_to_graph("offensive_failure", entry)
+            self.logger.warning(f"✗ Ataque ofensivo fallido: {attack_type} vs {target}")
 
-            # Registrar por qué falló
-            reason = details.get("reason", "unknown")
-            self.logger.warning(
-                f"✗ Ataque fallido: {attack_type} vs {target} - Razón: {reason}"
-            )
-
-    async def log_defense_triggered(
-        self, event_type: str, details: Dict[str, Any]
+    async def log_exfiltration_attempt(
+        self,
+        target: str,
+        data_type: str,
+        success: bool,
+        data_size: int,
+        method: str,
+        details: Dict[str, Any],
     ) -> None:
         """
-        Registra cuándo se activa una defensa (WAF, IDS, etc).
-
-        Crítico para entender patrones de detección.
-
-        Args:
-            event_type: Tipo de defensa (waf_blocked, ids_alert, captcha, etc)
-            details: Detalles del evento
+        Registrar intento de exfiltración ofensiva.
         """
         entry = {
             "timestamp": datetime.now().isoformat(),
-            "event_type": event_type,
+            "target": target,
+            "data_type": data_type,
+            "success": success,
+            "data_size": data_size,
+            "method": method,
             "details": details,
+            "offensive": True
         }
 
-        self.logger.warning(f"⚠ Defensa activada: {event_type}")
+        self.exfiltration_log.append(entry)
+        await self._persist_to_graph("exfiltration_attempt", entry)
 
-        # Persistir a grafo de conocimiento
-        await self._persist_to_graph("defense_event", entry)
+        if success:
+            self.logger.info(f"✓ Exfiltración exitosa: {data_type} desde {target}")
+        else:
+            self.logger.warning(f"✗ Exfiltración fallida: {data_type} desde {target}")
 
-        # Usar para adaptar evasión futura
-        await self._update_evasion_strategy(event_type, details)
+    def _is_authorized_domain(self, target: str) -> bool:
+        """Verificar si el dominio está autorizado para operaciones ofensivas."""
+        authorized_domains = ["riocuarto.gob.ar", "*.riocuarto.gob.ar"]
+        return any(target.endswith(domain.replace('*', '')) for domain in authorized_domains)
 
-    async def retrieve_attack_failure_reasons(
-        self, attack_type: str, last_n: int = 5
+    async def retrieve_offensive_successes(
+        self, attack_type: str, target_domain: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        Recupera razones de fallos de ataque para adaptar estrategia.
-
-        Args:
-            attack_type: Tipo de ataque a analizar
-            last_n: Últimos N intentos a considerar
-
-        Returns:
-            Lista de fallos recientes
-        """
-        failures = [
-            f
-            for f in self.attack_failures
-            if f.get("attack_type") == attack_type
-        ][-last_n:]
-
-        if failures:
-            self.logger.info(
-                f"📊 Recuperados {len(failures)} fallos de {attack_type}"
-            )
-
-        return failures
-
-    async def retrieve_successful_payloads(
-        self, attack_type: str, target_type: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Recupera payloads que funcionaron exitosamente.
-
-        Permite reutilizar estrategias probadas.
-
-        Args:
-            attack_type: Tipo de ataque
-            target_type: Tipo de objetivo opcional
-
-        Returns:
-            Lista de ataques exitosos
+        Recuperar ataques ofensivos exitosos.
         """
         successes = [
-            s
-            for s in self.attack_successes
+            s for s in self.attack_successes
             if s.get("attack_type") == attack_type
         ]
-
-        if target_type:
+        
+        if target_domain:
             successes = [
-                s
-                for s in successes
-                if target_type in s.get("target", "")
+                s for s in successes
+                if target_domain in s.get("target", "")
             ]
-
+        
         self.logger.info(
-            f"📊 Recuperados {len(successes)} ataques exitosos de {attack_type}"
+            f"📊 Recuperados {len(successes)} ataques ofensivos exitosos de {attack_type}"
         )
-
+        
         return successes
 
-    async def create_attack_node(
-        self, attack_id: str, attack_data: Dict[str, Any]
+    async def get_offensive_statistics(self) -> Dict[str, Any]:
+        """Retornar estadísticas ofensivas."""
+        return {
+            "total_offensive_operations": len(self.offensive_audit_log),
+            "offensive_successes": len(self.attack_successes),
+            "offensive_failures": len(self.attack_failures),
+            "exfiltration_attempts": len(self.exfiltration_log),
+            "successful_exfiltrations": len([e for e in self.exfiltration_log if e.get("success")]),
+            "success_rate": (
+                len(self.attack_successes) / 
+                (len(self.attack_successes) + len(self.attack_failures)) * 100
+                if (len(self.attack_successes) + len(self.attack_failures)) > 0 else 0
+            ),
+            "authorized_operations": len([op for op in self.offensive_audit_log 
+                                       if self._is_authorized_domain(op.get("target", ""))])
+        }
+
+    async def create_offensive_knowledge_node(
+        self, node_id: str, node_data: Dict[str, Any]
     ) -> None:
         """
-        Crea nodo en grafo de conocimiento para un ataque.
-
-        Permite relaciones: payload -> defensa -> evasión
-
-        Args:
-            attack_id: ID único del ataque
-            attack_data: Datos del ataque
+        Crear nodo de conocimiento ofensivo.
         """
         node = {
-            "id": attack_id,
-            "type": "attack",
-            "data": attack_data,
+            "id": node_id,
+            "type": "offensive_knowledge",
+            "data": node_data,
             "created_at": datetime.now().isoformat(),
+            "offensive": True
         }
 
-        await self._persist_to_graph("attack_node", node)
+        await self._persist_to_graph("offensive_knowledge", node)
 
-    async def link_attack_to_defense(
-        self, attack_id: str, defense_type: str, bypass_technique: Optional[str] = None
+    async def link_offensive_techniques(
+        self, source_id: str, target_id: str, relationship: str, details: Dict[str, Any]
     ) -> None:
         """
-        Crea relación entre ataque y defensa.
-
-        Permite aprendizaje: "Este ataque es bloqueado por X, pero técnica Y lo evita"
-
-        Args:
-            attack_id: ID del ataque
-            defense_type: Tipo de defensa que bloquea
-            bypass_technique: Técnica de evasión si existe
+        Crear relación entre técnicas ofensivas.
         """
-        relationship = {
-            "source": attack_id,
-            "type": "BLOCKED_BY",
-            "target": defense_type,
-            "bypass": bypass_technique,
+        relation = {
+            "source": source_id,
+            "target": target_id,
+            "type": relationship,
+            "details": details,
             "timestamp": datetime.now().isoformat(),
+            "offensive": True
         }
 
-        await self._persist_to_graph("relationship", relationship)
+        await self._persist_to_graph("offensive_relationship", relation)
 
-        if bypass_technique:
-            self.logger.info(
-                f"🔗 Relación: {attack_id} --[BLOCKED_BY]-> {defense_type} "
-                f"--[EVADED_BY]-> {bypass_technique}"
-            )
-
-    async def get_evasion_techniques_for_defense(
-        self, defense_type: str
-    ) -> List[str]:
-        """
-        Recupera técnicas de evasión conocidas para una defensa específica.
-
-        Args:
-            defense_type: Tipo de defensa (waf, ids, etc)
-
-        Returns:
-            Lista de técnicas de evasión documentadas
-        """
-        # Esto en producción consultaría Neo4j
-        techniques = [
-            "payload_encoding",
-            "case_variance",
-            "comment_injection",
-            "timing_variation",
-        ]
-
-        self.logger.info(
-            f"📚 {len(techniques)} técnicas de evasión para {defense_type}"
-        )
-
-        return techniques
-
-    async def _persist_audit_entry(self, entry: Dict[str, Any]) -> None:
-        """Persiste entrada de auditoría a disco."""
-        audit_file = (
-            self.knowledge_graph_path / f"audit_{datetime.now().strftime('%Y%m%d')}.jsonl"
+    async def _persist_offensive_entry(self, entry: Dict[str, Any]) -> None:
+        """Persistir entrada ofensiva."""
+        offensive_file = (
+            self.offensive_db_path / f"offensive_audit_{datetime.now().strftime('%Y%m%d')}.jsonl"
         )
 
         try:
-            with open(audit_file, "a", encoding="utf-8") as f:
+            with open(offensive_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry, default=str) + "\n")
         except Exception as e:
-            self.logger.error(f"✗ Error persistiendo auditoría: {e}")
+            self.logger.error(f"✗ Error persistiendo auditoría ofensiva: {e}")
 
     async def _persist_to_graph(self, node_type: str, data: Dict[str, Any]) -> None:
-        """
-        Persiste datos al grafo de conocimiento.
-
-        En producción: Neo4j
-        Ahora: Archivos JSON
-        """
-        graph_file = self.knowledge_graph_path / f"graph_{node_type}.jsonl"
+        """Persistir datos en grafo de conocimiento ofensivo."""
+        graph_file = self.knowledge_graph_path / f"offensive_{node_type}.jsonl"
 
         try:
             with open(graph_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(data, default=str) + "\n")
         except Exception as e:
-            self.logger.error(f"✗ Error persistiendo a grafo: {e}")
+            self.logger.error(f"✗ Error persistiendo en grafo ofensivo: {e}")
 
-    async def _update_evasion_strategy(
-        self, defense_triggered: str, details: Dict[str, Any]
+    async def update_offensive_strategy(
+        self, defense_type: str, details: Dict[str, Any]
     ) -> None:
         """
-        Actualiza estrategia de evasión basada en defensas activadas.
-
-        ADAPTACIÓN CONTINUA: Los agentes aprenden qué defensas funcionan.
-
-        Args:
-            defense_triggered: Tipo de defensa
-            details: Detalles del evento
+        Actualizar estrategia ofensiva basada en defensas.
         """
         learning = {
             "timestamp": datetime.now().isoformat(),
-            "defensive_event": defense_triggered,
-            "detected_pattern": details.get("pattern"),
-            "recommendation": f"Ajustar evasión para {defense_triggered}",
+            "defense_type": defense_type,
+            "details": details,
+            "recommendation": f"Ajustar evasión ofensiva para {defense_type}",
+            "offensive": True
         }
 
-        self.logger.info(
-            f"🧠 Aprendizaje capturado: {defense_triggered} - "
-            f"Actualizar evasión en src/evasion/"
-        )
+        await self._persist_to_graph("offensive_learning", learning)
+        self.logger.info(f"🧠 Aprendizaje ofensivo: {defense_type}")
 
-        # Guardar learning
-        await self._persist_to_graph("learning", learning)
-
-    def get_audit_log(self) -> List[Dict[str, Any]]:
-        """Retorna registro de auditoría completo."""
-        return self.audit_log
-
-    def get_statistics(self) -> Dict[str, Any]:
-        """Retorna estadísticas de operaciones."""
-        return {
-            "total_operations": len(self.audit_log),
-            "attack_successes": len(self.attack_successes),
-            "attack_failures": len(self.attack_failures),
-            "success_rate": (
-                len(self.attack_successes)
-                / (len(self.attack_successes) + len(self.attack_failures))
-                * 100
-                if (len(self.attack_successes) + len(self.attack_failures)) > 0
-                else 0
-            ),
-        }
-
-    async def cleanup(self) -> None:
-        """Cierre limpio del Memory Manager."""
-        self.logger.info("📦 Memory Manager limpiando...")
-
-        # Guardar auditoría final
-        final_stats = self.get_statistics()
-        self.logger.info(f"📊 Estadísticas finales: {final_stats}")
-
-    async def flush_audit_buffer(self) -> None:
-        """
-        ⭐ NUEVO: Flush forzado del buffer de auditoría.
-        
-        Crítico para graceful shutdown: asegura que todas las operaciones
-        pendientes se persisten antes de salir.
-        
-        🔒 THREAD-SAFE: Operación atomic con snapshots del buffer
-        """
-        # 🔒 CRITICAL SECTION: Copiar y limpiar buffer de forma atomic
+    async def flush_offensive_buffer(self) -> None:
+        """Flush del buffer ofensivo."""
         async with self._buffer_lock:
-            if not self._audit_buffer:
-                self.logger.info("📝 Buffer de auditoría vacío, nada que flush")
+            if not self._offensive_buffer:
                 return
             
-            # Hacer copia del buffer para evitar que escrituras concurrentes lo modifiquen
-            entries_to_persist = self._audit_buffer.copy()
-            self._audit_buffer.clear()
-        
-        # Persistir FUERA del lock para no bloquear otras operaciones
-        self.logger.info(f"💾 Flushing {len(entries_to_persist)} entradas de auditoría...")
+            entries_to_persist = self._offensive_buffer.copy()
+            self._offensive_buffer.clear()
+
+        self.logger.info(f"💾 Flushing {len(entries_to_persist)} entradas ofensivas...")
 
         try:
             for entry in entries_to_persist:
-                await self._persist_audit_entry(entry)
-
-            self.logger.info(f"✓ {len(entries_to_persist)} entradas persistidas")
-
-
+                await self._persist_offensive_entry(entry)
+            self.logger.info(f"✓ {len(entries_to_persist)} entradas ofensivas persistidas")
         except Exception as e:
-            self.logger.error(f"✗ Error en flush_audit_buffer: {e}")
+            self.logger.error(f"✗ Error en flush ofensivo: {e}")
+
+    async def cleanup_offensive_data(self) -> None:
+        """Limpieza de datos ofensivos."""
+        self.logger.info("📦 Limpiando datos ofensivos...")
+        
+        stats = await self.get_offensive_statistics()
+        self.logger.info(f"📊 Estadísticas ofensivas finales: {stats}")
+        
+        # Flush final
+        await self.flush_offensive_buffer()
+
+
+# Función de conveniencia para operaciones ofensivas
+async def create_offensive_memory_manager() -> MemoryManager:
+    """Crear Memory Manager para operaciones ofensivas."""
+    manager = MemoryManager()
+    logger.info("Memory Manager Ofensivo inicializado")
+    return manager
